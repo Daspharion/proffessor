@@ -1,0 +1,34 @@
+{
+  "name": "proffessor",
+  "version": "0.0.1",
+  "description": "Telegram bot that provides organization of the learning process for students and their teachers",
+  "main": "proffessor",
+  "scripts": {
+    "start": "nf start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daspharion/proffessor.git"
+  },
+  "keywords": [
+    "nodejs",
+    "telegram",
+    "organization",
+    "learning process"
+  ],
+  "author": "daspharion",
+  "contributors": [
+    "olha"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/daspharion/proffessor/issues"
+  },
+  "homepage": "https://github.com/daspharion/proffessor#readme",
+  "dependencies": {
+    "telegraf": "3.20.0"
+	},
+	"engines": {
+		"node": "9.11.1"
+	}
+}

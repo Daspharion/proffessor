@@ -4,7 +4,7 @@ import { TELEGRAM } from './src/config'
 const Bot = new Telegraf(TELEGRAM)
 
 Bot.hears('hey', ctx => {
-  ctx.reply('hello world! :)')
+  ctx.reply('tesing olha branch')
 })
 
 Bot.startPolling()

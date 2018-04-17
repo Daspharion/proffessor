@@ -14,8 +14,10 @@ switch(NODE) {
     Bot.startPolling()
     break
   case 'production':
+    console.log('PREPARING WEBHOOK')
     Bot.telegram.setWebhook(WEBHOOK)
     Bot.startWebhook(`/bot-${TELEGRAM}`, null, PORT)
+    console.log('WEBHOOK ENABLED')
     break
   default:
     console.error('Environment Mode is not Specified')

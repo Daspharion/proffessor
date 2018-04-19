@@ -7,9 +7,6 @@ class History { // ОГОЛОШЕННЯ КЛАСУ
         for(let key in this.stack[_key]) // ПРОГАНЯЄМОСЯ ЧЕРЕЗ ПОВІДОМЛЕННЯ ВСІХ КОРИСТУВАЧІВ, ЩО Є В СТЕКУ
           if(date - this.stack[_key][key].date > 20) delete this.stack[_key][key] // ЯКЩО РІЗНИЦЯ ДАТИ НА ДАНИЙ МОМЕНТ І ДАТИ ІЗ ПОВІДОМЛЕННЯ > 10с-ВИДАЛЯЄМО ПОВ
     }, 600000) // ЗАДАЄМО ДРУГИЙ АРГУМЕНТ (ЧАС, ЧЕРЕЗ ЯКИЙ ФУНЦІЯ МАЄ ПОВТОРЮВАТИСЯ (10хв))
-    setInterval(() => {
-      console.log(this.stack)
-    }, 5000) // ЩОБ СЛІДИТИ ЗА СТЕКОМ / DEBUGING ПРОЦЕС
   }
   count(msg) { // ОГОЛОШЕННЯ ФУНКЦІЇ В КЛАСІ(ЇЇ АРГУМЕНТ - ОБ'ЄКТ message ІЗ ОБ'ЄКТУ ctx)
     this.stack[msg.from.id] = this.stack[msg.from.id] || {} // УНИКАЄМО ВИПАДКУ, КОЛИ this.stack[msg.from.id] === undefined (НЕВИЧЗНАЧЕНИЙ)

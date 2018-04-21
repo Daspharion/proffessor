@@ -12,21 +12,4 @@ Handler.command('start', ctx => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 export default Handler

@@ -1,7 +1,6 @@
 import Mongoose from 'mongoose'
 
 const Schema = Mongoose.Schema
-const ObjectId = Schema.ObjectId
 
 // USERS
 const _users = new Schema({

@@ -2,33 +2,33 @@ import locale from './locale'
 
 class Chat {
   constructor() {
-    this.config = {
-      lengths: {},
-      rates: {}
-    }
-    for(let key in locale) {
-      this.config.lengths[key] = []
-      this.config.rates[key] = locale[key][1]
-      for(let i in locale[key])
-        this.config.lengths[key][i] = locale[key][0][i].length
-    }
+    this.listeners = {}
+    this.lengths = {}
+    this.counters = {}
+    Object.keys(locale).forEach(pattern => {
+      this.listeners[pattern] = RegExp(Object.values(locale[pattern].listeners).join('|'), 'i')
+      this.lengths[pattern] = locale[pattern].replies.map(val => { return val.length })
+      this.counters[pattern] = locale[pattern].counters
+    })
+    this.lstnr = RegExp(Object.values(this.listeners).map(val => { return val.source }).join('|'), 'i')
   }
-  getRate(type, counter) {
-    let rate = 0
-    for(let el of this.config.rates[type])
-      if(counter >= el) rate++
-    return rate
+  parse(match) {
+    match = match.toLowerCase()
+    const pattern = Object.keys(this.listeners).find(key => {
+      if(this.listeners[key].test(match)) return key
+    })
+    return pattern || 'default'
   }
-  reply(type, counter) {
-    const i = this.getRate(type, counter)
-    const j = Math.floor(Math.random() * this.config.lengths[type][i])
-    return locale[type][0][i][j]
+  getRank(pattern, counter) {
+    let rank = 0
+    this.counters[pattern].forEach(num => { if(counter > num) rank++ })
+    return rank
   }
-
-
-
-
-
+  reply(pattern, counter) {
+    const rank = this.getRank(pattern, counter)
+    const msg = Math.floor(Math.random() * this.lengths[pattern][rank])
+    return locale[pattern].replies[rank][msg]
+  }
 }
 
 export default Chat

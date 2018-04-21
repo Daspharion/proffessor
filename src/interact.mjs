@@ -6,16 +6,16 @@ const Handler = new Composer()
 const Hst = new History()
 const Cht = new Chat()
 
-Handler.use((ctx, next) => {
+Handler.hears(Cht.lstnr, ctx => {
   const msg = ctx.update.message
-  msg.counter = Hst.count(msg)
-  return next()
-})
-
-Handler.hears(/привіт/i, ctx => {
-  const msg = ctx.update.message
-  const string = Cht.reply('hello', msg.counter)
-  ctx.reply(string)
+  const pattern = Cht.parse(ctx.match[0])
+  const params = {
+    id: msg.from.id,
+    pattern: pattern,
+    date: msg.date
+  }
+  const str = Cht.reply(pattern, Hst.count(params))
+  ctx.reply(str)
 })
 
 

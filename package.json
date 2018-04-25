@@ -18,7 +18,7 @@
   ],
   "author": "daspharion",
   "contributors": [
-    "olha"
+    "olha1313"
   ],
   "license": "MIT",
   "bugs": {
@@ -26,7 +26,7 @@
   },
   "homepage": "https://github.com/daspharion/proffessor#readme",
   "dependencies": {
-    "mongoose": "^5.0.15",
+    "mongoose": "^5.0.16",
     "telegraf": "^3.20.0"
   },
   "engines": {

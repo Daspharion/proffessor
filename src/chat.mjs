@@ -6,7 +6,7 @@ class Chat {
     this.lengths = {}
     this.counters = {}
     Object.keys(locale).forEach(pattern => {
-      this.listeners[pattern] = RegExp(Object.values(locale[pattern].listeners).join('|'), 'i')
+      this.listeners[pattern] = RegExp(locale[pattern].listeners.join('|'), 'i')
       this.lengths[pattern] = locale[pattern].replies.map(val => { return val.length })
       this.counters[pattern] = locale[pattern].counters
     })

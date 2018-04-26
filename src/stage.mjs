@@ -27,8 +27,8 @@ const start = new WizardScene('start',
         firstname: from.first_name,
         lastname: from.last_name
       }, { upsert: true })
-        .then(() => ctx.reply('Супер! Запис в базі даних створено'))
-        .catch(() => ctx.reply('Невдалося створити запис в базі даних, спробуйте пізніше'))
+        .then(() => { ctx.reply('Супер! Запис в базі даних створено')})
+        .catch(() => { ctx.reply('Невдалося створити запис в базі даних, спробуйте пізніше')})
       return ctx.scene.leave()
     } else {
       ctx.reply('Скористайтесь, будь ласка, клавіатурою.')

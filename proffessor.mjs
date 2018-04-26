@@ -34,3 +34,9 @@ switch(NODE) {
     console.error('Environment Mode is not Specified')
     process.exit(1)
 }
+
+// TODO:
+// 1) БОТ - КОЛЛЕКТОР
+// 2) ГОЛОСУВАННЯ
+// 3) РОЗКЛАД
+// 4) BETTER ОГОЛОШЕННЯ

@@ -1,4 +1,4 @@
-class History {
+export default class History {
   constructor() {
     this.stack = {}
     setInterval(() => {
@@ -13,11 +13,9 @@ class History {
     this.stack[id] = this.stack[id] || {}
     this.stack[id][pattern] = this.stack[id][pattern] || {}
     const pttrn = this.stack[id][pattern]
-    pttrn.date = date || 0
+    pttrn.date = pttrn.date || 0
     pttrn.counter = pttrn.counter ? date - pttrn.date < 20 ? ++pttrn.counter : 1 : 1
     pttrn.date = date
     return pttrn.counter
   }
 }
-
-export default History

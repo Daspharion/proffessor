@@ -1,12 +1,12 @@
 import locale from './locale'
 
-class Chat {
+export default class Chat {
   constructor() {
     this.listeners = {}
     this.lengths = {}
     this.counters = {}
     Object.keys(locale).forEach(pattern => {
-      this.listeners[pattern] = RegExp(locale[pattern].listeners.join('|'), 'i')
+      if(locale[pattern].listeners) this.listeners[pattern] = RegExp(locale[pattern].listeners.join('|'), 'i')
       this.lengths[pattern] = locale[pattern].replies.map(val => { return val.length })
       this.counters[pattern] = locale[pattern].counters
     })
@@ -21,14 +21,12 @@ class Chat {
   }
   getRank(pattern, counter) {
     let rank = 0
-    this.counters[pattern].forEach(num => { if(counter > num) rank++ })
+    if(locale[pattern].counters) this.counters[pattern].forEach(num => { if(counter > num) rank++ })
     return rank
   }
-  reply(pattern, counter) {
+  reply(pattern, counter=0) {
     const rank = this.getRank(pattern, counter)
     const msg = Math.floor(Math.random() * this.lengths[pattern][rank])
     return locale[pattern].replies[rank][msg]
   }
 }
-
-export default Chat

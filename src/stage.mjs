@@ -12,11 +12,13 @@ const _Stage = new Stage()
 const reg = new Scene('reg')
 
 reg.enter(async ctx => {
+  console.log('entered reg scene')
   const msg = ctx.message
   const members = {
     reg: (await Groups.findOne({ group_id: msg.chat.id })).members.length,
     all: await ctx.getChatMembersCount(msg.chat.id)
   }
+  ctx.reply('debugging sucks...')
   ctx.reply(`\`Реєстрація користувачів\`\nДля реєстрації натисніть, будь ласка, на чекмарк\n/cancel\` - для зупинки процесу\`\n\`Статус: ${ members.reg }/${ members.all-1 }\``,
     Extra.markdown().markup(m => m.inlineKeyboard([ m.callbackButton('✔️', 'register') ])))
     .then(({ message_id }) => Groups.update({ group_id: msg.chat.id }, { reg_id: message_id }))

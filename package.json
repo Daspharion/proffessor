@@ -27,7 +27,7 @@
   "homepage": "https://github.com/daspharion/proffessor#readme",
   "dependencies": {
     "mongoose": "^5.0.16",
-    "telegraf": "^3.20.0"
+    "telegraf": "^3.21.1"
   },
   "engines": {
     "node": "9.11.1"

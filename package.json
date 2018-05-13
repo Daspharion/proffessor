@@ -1,6 +1,6 @@
 {
   "name": "proffessor",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Telegram bot that provides organization of the learning process for students and their teachers",
   "main": "proffessor",
   "scripts": {

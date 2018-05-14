@@ -82,8 +82,7 @@ export default new class Callbacks {
         const { schedule, homework } = await Schedules.findOne({ group_id: message.chat.id })
         const day = [ 'mo', 'tu', 'we', 'th', 'fr' ].indexOf(_day)
         homework[day].map(sub => { if(sub) return sub.media }).forEach((sub, n) => {
-          console.log(sub)
-          if(sub)
+          if(sub && sub[0])
             if(sub.length > 1) ctx.replyWithMediaGroup(sub.map(m => { return { type: 'photo', media: m, caption: schedule[day][n] }}))
             else ctx.replyWithPhoto(sub[0], { caption: schedule[day][n] })
         })

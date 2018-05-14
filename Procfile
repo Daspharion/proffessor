@@ -1,1 +1,1 @@
-worker: node proffessor
+web: node proffessor

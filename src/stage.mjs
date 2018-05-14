@@ -75,7 +75,8 @@ const poll = new WizardScene('newpoll',
     const group = await Groups.findOne({ group_title: ctx.message.text })
     if(group) {
       const poll = ctx.session.poll
-      ctx.telegram.sendMessage(group.group_id, `\`Голосування\`\n*${ poll.title }*\n\`Варіанти відповідей:\`\n${ poll.answers.map((e, n) => { return `${ `\` \` ` }${ String.fromCharCode(65+n) } \`[0%]\`: ${ e.text } `}).join('\n') }\n\`Всього голосів: 0\``, Extra.markdown().markup(m => m.inlineKeyboard(poll.answers.map((e, n) => { return  m.callbackButton(String.fromCharCode(65+n), `vote-${ n }`) }))))
+      ctx.telegram.sendMessage(group.group_id, `\`Голосування\`\n*${ poll.title }*\n\`Варіанти відповідей:\`\n${ poll.answers.map((e, n) => { return `${ `\` \` ` }${ String.fromCharCode(65+n) } \`[0%]\`: ${ e.text } `}).join('\n') }\n\`Всього голосів: 0\``,
+        Extra.markdown().markup(m => m.inlineKeyboard(poll.answers.map((e, n) => { return  m.callbackButton(String.fromCharCode(65+n), `vote-${ n }`) }))))
         .then(x) => {
           console.log(x)
           Polls.update({ user_id: ctx.message.from.id }, {

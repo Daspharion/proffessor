@@ -20,10 +20,10 @@ Mongoose.Promise = Promise
 
 Mongoose.connect(MONGO[NODE]).then(db => {
   console.log('> Connected to database')
-  if(NODE === 'production') {
+  /*if(NODE === 'production') {
     Bot.telegram.setWebhook(WEBHOOK)
     Bot.startWebhook(`/bot-${ TELEGRAM }`, null, PORT)
-  } else Bot.startPolling()
+  } else */Bot.startPolling()
   console.log(`> Starting bot in ${ NODE } enviroment`)
 }).catch(err => {
   console.error(`! Error: ${ err.message }`)

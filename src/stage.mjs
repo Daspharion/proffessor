@@ -194,7 +194,7 @@ const homework = new WizardScene('homework',
       const _day = new Date().getDay()
       const day = _day > 0 || _day < 6 ? _day-1 : 0
       const _days = days.slice(day+1).concat(days.slice(0, day+1))
-      schedule.schedule = schedule.schedule.concat(schedule.schedule.splice(0, day+1))
+      schedule.schedule = schedule.schedule.concat(schedule.schedule.splice(0, day))
       const keyboard = []
       schedule.schedule.forEach((day, dayname) =>
         day.forEach((sub, n) => { if(sub === ctx.message.text) keyboard.push(`${ ctx.session.emoji[n] } ${ days[dayname] }`)}))

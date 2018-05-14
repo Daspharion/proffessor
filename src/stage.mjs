@@ -12,13 +12,11 @@ const _Stage = new Stage()
 const reg = new Scene('reg')
 
 reg.enter(async ctx => {
-  console.log('entered reg scene')
   const msg = ctx.message
   const members = {
     reg: (await Groups.findOne({ group_id: msg.chat.id })).members.length,
     all: await ctx.getChatMembersCount(msg.chat.id)
   }
-  ctx.reply('debugging sucks...')
   ctx.reply(`\`Реєстрація користувачів\`\nДля реєстрації натисніть, будь ласка, на чекмарк\n/cancel\` - для зупинки процесу\`\n\`Статус: ${ members.reg }/${ members.all-1 }\``,
     Extra.markdown().markup(m => m.inlineKeyboard([ m.callbackButton('✔️', 'register') ])))
     .then(({ message_id }) => Groups.update({ group_id: msg.chat.id }, { reg_id: message_id }))
@@ -194,10 +192,10 @@ const homework = new WizardScene('homework',
       const _day = new Date().getDay()
       const day = _day > 0 || _day < 6 ? _day-1 : 0
       const _days = days.slice(day+1).concat(days.slice(0, day+1))
-      schedule.schedule = schedule.schedule.concat(schedule.schedule.splice(0, day))
+      schedule.schedule = schedule.schedule.concat(schedule.schedule.splice(0, day+1))
       const keyboard = []
       schedule.schedule.forEach((day, dayname) =>
-        day.forEach((sub, n) => { if(sub === ctx.message.text) keyboard.push(`${ ctx.session.emoji[n] } ${ days[dayname] }`)}))
+        day.forEach((sub, n) => { if(sub === ctx.message.text) keyboard.push(`${ ctx.session.emoji[n] } ${ _days[dayname] }`)}))
       ctx.reply('Вкажіть котру пару ви бажаєте обрати: ',
         Markup.keyboard(keyboard, { columns: 2 }).resize().extra())
       ctx.wizard.next()

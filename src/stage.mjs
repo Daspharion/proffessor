@@ -35,10 +35,9 @@ reg.command('cancel', ctx => ctx.scene.leave())
 // NEW POLL
 const poll = new WizardScene('newpoll',
   async (ctx) => {
-    console.log('1) entered poll')
     const q = await Polls.findOne({ user_id: ctx.message.from.id })
     if(q) await ctx.reply('Ваше попереднє опитування досі активне, воно буде автоматично видалене при створенні нового.')
-    ctx.reply('Напишіть мені, будь ласка, запитання для опитування.').then(x => console.log(`2) ${ x }`))
+    ctx.reply('Напишіть мені, будь ласка, запитання для опитування.')
     ctx.wizard.next()
   },
   async (ctx) => {
@@ -50,7 +49,6 @@ const poll = new WizardScene('newpoll',
       voters: []
     }
     ctx.reply('Добре, а тепер напишіть мені варіанти відповідей (кожне у окремому повідомленні).')
-    console.log('3) got answer')
     ctx.wizard.next()
   },
   async (ctx) => {
@@ -63,7 +61,6 @@ const poll = new WizardScene('newpoll',
         const q = await Groups.find({ members: ctx.message.from.id })
         ctx.reply('Вкажіть, будь ласка, в котрій бесіді в бажаєте провести опитування:',
           Markup.keyboard(q.map(({ group_title }) => { return group_title })).oneTime().resize().extra())
-        console.log('4) done')
         ctx.wizard.next()
       }
     } else {
@@ -75,11 +72,10 @@ const poll = new WizardScene('newpoll',
     const group = await Groups.findOne({ group_title: ctx.message.text })
     if(group) {
       const poll = ctx.session.poll
-      console.log(ctx)
-      ctx.telegram.sendMessage(group.group_id, `\`Голосування\`\n*${ poll.title }*\n\`Варіанти відповідей:\`\n${ poll.answers.map((e, n) => { return `${ `\` \` ` }${ String.fromCharCode(65+n) } \`[0%]\`: ${ e.text } `}).join('\n') }\n\`Всього голосів: 0\``,
+      ctx.telegram.sendMessage(group.group_id,
+        `\`Голосування\`\n*${ poll.title }*\n\`Варіанти відповідей:\`\n${ poll.answers.map((e, n) => { return `${ `\` \` ` }${ String.fromCharCode(65+n) } \`[0%]\`: ${ e.text } `}).join('\n') }\n\`Всього голосів: 0\``,
         Extra.markdown().markup(m => m.inlineKeyboard(poll.answers.map((e, n) => { return  m.callbackButton(String.fromCharCode(65+n), `vote-${ n }`) }))))
-        .then(x => {
-          console.log(x)
+        .then(({ message_id, chat }) =>
           Polls.update({ user_id: ctx.message.from.id }, {
             group_id: chat.id,
             message_id: message_id,
@@ -87,8 +83,7 @@ const poll = new WizardScene('newpoll',
             title: poll.title,
             answers: poll.answers,
             voters: poll.voters
-          }, { upsert: true })
-        })
+          }, { upsert: true }))
         .then(() => ctx.replyWithMarkdown('Готово.\n/delpoll \`- для зупинки опитування\`', Extra.markup((m) => m.removeKeyboard())))
         .then(() => ctx.scene.leave())
     }

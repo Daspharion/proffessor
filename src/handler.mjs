@@ -12,6 +12,13 @@ const Handler = new Composer()
 
 Handler.use(Stage)
 
+Handler.command('test', ctx => {
+  ctx.telegram.sendMessage(ctx.message.from.id, 'Test message')
+    .then(data => console.log(data))
+    .catch(err => console.error(err))
+})
+
+
 Handler.on('callback_query', ctx => Callbacks.answer(ctx))
 
 Handler.on('new_chat_members', async ctx => {

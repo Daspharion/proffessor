@@ -22,7 +22,7 @@ Mongoose.connect(MONGO[NODE]).then(db => {
   console.log('> Connected to database')
   if(NODE === 'production') {
     Bot.telegram.setWebhook(WEBHOOK)
-    Bot.telegram.webhookReply = true
+    Bot.telegram.webhookReply = false
     Bot.startWebhook(`/bot-${ TELEGRAM }`, null, PORT)
   } else Bot.startPolling()
   console.log(`> Starting bot in ${ NODE } enviroment`)

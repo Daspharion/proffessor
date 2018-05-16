@@ -6,7 +6,7 @@ import Stage from './stage'
 import Views from './views'
 import Chat from './chat'
 
-import { Groups, Polls, Schedules } from './models'
+import { Groups, Polls, Schedules, Requisites } from './models'
 
 const Handler = new Composer()
 
@@ -50,6 +50,7 @@ Handler.on('left_chat_member', async ctx => {
     const group = await Groups.findOne({ group_id: msg.chat.id })
     Schedules.remove({ group_id: msg.chat.id }).catch(err => console.error(err))
     Polls.remove({ group_id: msg.chat.id }).catch(err => console.error(err))
+    Requisites.remove({ group_id: msg.chat.id }).catch(err => console.error(err))
     Groups.remove({ group_id: msg.chat.id }).then(() => {
       ctx.telegram.sendMessage(group.admin_id, `Оскільки мене було видалено із бесіди \`${ group.group_title }\`, вся інформація та налаштування були *стерті*. Я сумуватиму за вами 😔`, Extra.markdown())
       ctx.scene.leave()

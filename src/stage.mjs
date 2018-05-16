@@ -3,8 +3,9 @@ import Scene from 'telegraf/scenes/base'
 import Markup from 'telegraf/markup'
 import Stage from 'telegraf/stage'
 import Extra from 'telegraf/extra'
+import Views from './views'
 
-import { Groups, Polls, Schedules } from './models'
+import { Groups, Polls, Schedules, Announcements, Requisites } from './models'
 
 const _Stage = new Stage()
 
@@ -71,7 +72,7 @@ const poll = new WizardScene('newpoll',
     if(group) {
       const poll = ctx.session.poll
       ctx.telegram.sendMessage(group.group_id,
-        `\`Голосування\`\n*${ poll.title }*\n\`Варіанти відповідей:\`\n${ poll.answers.map((e, n) => { return `${ `\` \` ` }${ String.fromCharCode(65+n) } \`[0%]\`: ${ e.text } `}).join('\n') }\n\`Всього голосів: 0\``,
+        `\`Голосування 📢\`\n*${ poll.title }*\n\`Варіанти відповідей:\`\n${ poll.answers.map((e, n) => { return `${ `\` \` ` }${ String.fromCharCode(65+n) } \`[0%]\`: ${ e.text } `}).join('\n') }\n\`Всього голосів: 0\``,
         Extra.markdown().markup(m => m.inlineKeyboard(poll.answers.map((e, n) => { return  m.callbackButton(String.fromCharCode(65+n), `vote-${ n }`) }))))
         .then(({ message_id, chat }) =>
           Polls.update({ user_id: ctx.message.from.id }, {
@@ -129,6 +130,10 @@ schedule.command('done', ctx => {
     ctx.reply('Ой... Відбулась невідома помилка при налаштуванні розкладу.')
   })
 })
+schedule.command(['cancel', 'exit'], ctx => {
+  ctx.reply('Процес налаштування розкладу було перервано.')
+  ctx.scene.leave()
+})
 schedule.on('text', ctx => {
   const schedule = ctx.session.schedule
   schedule.schedule[schedule.day][schedule.n] = ctx.message.text.match(/вікно/i) ? undefined : ctx.message.text
@@ -147,10 +152,6 @@ schedule.on('text', ctx => {
   ).then(({ message_id }) => ctx.session.schedule.message_id = message_id)
 })
 schedule.leave(ctx => ctx.session.schedule = undefined)
-schedule.command(['cancel', 'exit'], ctx => {
-  ctx.reply('Процес налаштування розкладу було перервано.')
-  ctx.scene.leave()
-})
 
 // HOMEWORK
 const homework = new WizardScene('homework',
@@ -231,8 +232,167 @@ homework.command('cancel', ctx => {
   ctx.scene.leave()
 })
 
+// ANNOUNCE
+const announce = new WizardScene('announce',
+  async (ctx) => {
+    const date = new Date()
+    const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+    ctx.session.announce = {
+      group_id: group_id,
+      text: null,
+      hour: null,
+      day: date.getDate(),
+      month: date.getMonth(),
+      year: date.getFullYear()
+    }
+    ctx.replyWithMarkdown('\`Створення оголошення\`\nНапишіть мені, будь ласка, текст вашого оголошення:')
+    ctx.wizard.selectStep(2)
+  },
+  (ctx) => {
+    if(ctx.message.text) {
+      const date = new Date()
+      const split = ctx.message.text.split(' ')
+      const day = parseInt(split[0])
+      const month = parseInt(split[1])<13 ? parseInt(split[1])-1 : date.getMonth()
+      const year = parseInt(split[2]) || date.getFullYear()
+      if(day >=0 && day <= 31 && month >= 0 && month <= 11 && year >= date.getFullYear()) {
+        ctx.session.announce.day = day
+        ctx.session.announce.month = month
+        ctx.session.announce.year = year
+        const keyboard = []
+        for(let i=0; i<24; i++) keyboard.push(i.toString().length>1 ? i.toString() : '0'+i.toString())
+        keyboard.push('«')
+        ctx.replyWithMarkdown('\`Створення оголошення\`\nОберіть необхідний вам час:\n« - для вибору дня',
+          Markup.keyboard(keyboard, { columns: 4 }).resize().extra())
+        ctx.wizard.selectStep(3)
+      } else ctx.replyWithMarkdown('\`Створення оголошення\`\nПомилка. Я вас не зрозумів!')
+    }
+  },
+  (ctx) => {
+    const msg = ctx.message
+    if(msg.text) {
+      ctx.session.announce.text = ctx.message.text
+      const keyboard = []
+      for(let i=0; i<24; i++) keyboard.push(i.toString().length>1 ? i.toString() : '0'+i.toString())
+      keyboard.splice(0, new Date().getHours())
+      keyboard.push('«')
+      ctx.replyWithMarkdown('\`Створення оголошення\`\nОберіть необхідний вам час:\n« - для вибору дня',
+        Markup.keyboard(keyboard, { columns: 4 }).resize().extra())
+      ctx.wizard.next()
+    } else ctx.replyWithMarkdown('\`Створення оголошення\`\nПомилка. Оголошення може бути тільки у вигляді тексту!')
+  },
+  (ctx) => {
+    let hour = parseInt(ctx.message.text)
+    if(hour >= 0 && hour <= 23) {
+      ctx.session.announce.hour = hour
+      hour = hour.toString().length > 1 ? hour.toString() : '0'+hour.toString()
+      const keyboard = []
+      for(let i=0; i<60; i+=15) keyboard.push(i.toString().length>1 ? hour+':'+i.toString() : hour+':'+'0'+i.toString())
+      keyboard.push('«')
+      ctx.replyWithMarkdown('\`Створення оголошення\`\nОберіть необхідний вам час:\n« - для вибору дня',
+        Markup.keyboard(keyboard, { columns: 4 }).resize().extra())
+      ctx.wizard.next()
+    } else ctx.replyWithMarkdown('\`Створення оголошення\`\nПомилка. Я вас не зрозумів!')
+  },
+  (ctx) => {
+    if(ctx.message.text) {
+      const { group_id, text, hour, day, month, year } = ctx.session.announce
+      const split = ctx.message.text.split(':')
+      const min = parseInt(split[1] ? split[1] : split[0])
+      if(min >= 0 && min <= 59) {
+        const diff = new Date(year, month, day, hour, min) - new Date()
+        if(diff > 0) {
+          const announcent = { group_id : group_id, text : text, min : min, hour : hour, day : day, month : month, year : year }
+          Announcements.create(announcent).then(({ _id }) => {
+            if(diff < 864e5) Views.announcement(_id, group_id, text, diff, ctx.telegram)
+            ctx.replyWithMarkdown(`\`Створення оголошення\`\nУспіх! Оголошення створено.\nВоно буде відправлено в бесіду о\` ${
+              ('0'+hour).slice(-2) }:${ ('0'+min).slice(-2) } ${ ('0'+day).slice(-2) }/${ ('0'+(month+1)).slice(-2) }/${ year }\``, Extra.markup((m) => m.removeKeyboard()))
+          }).catch(err => console.error(err))
+        } else ctx.replyWithMarkdown('\`Створення оголошення\`\nПомилка. Спроба створити оголошення в минуле', Extra.markup((m) => m.removeKeyboard()))
+        ctx.scene.leave()
+      } else ctx.replyWithMarkdown('\`Створення оголошення\`\nПомилка. Я вас не зрозумів!')
+    }
+  }
+)
+announce.hears('«', ctx => {
+  if(ctx.session.announce.text) {
+    ctx.replyWithMarkdown('\`Створення оголошення\`\nЗапишіть бажаний день в форматі:\` ДД ММ РРРР\`', Extra.markup((m) => m.removeKeyboard()))
+    ctx.wizard.selectStep(1)
+  } else ctx.replyWithMarkdown('\`Створення оголошення\`\nПомилка. Необхідно ввести текст оголошення!')
+})
+announce.leave(ctx => {
+  ctx.session.announce = undefined
+})
+announce.command('cancel', ctx => {
+  ctx.reply('Процес добавлення оголошення було перервано.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
 
-_Stage.register(reg, poll, schedule, homework)
+// REQUISITES
+const requisites = new Scene('requisites')
+
+requisites.enter(async ctx => {
+  const user = ctx.message.from
+  const { group_id } = await Groups.findOne({ admin_id: user.id })
+  const req = (await Requisites.findOne({  group_id: group_id })) || {
+    group_id: group_id,
+    message: `Прошу передати гроші особисто мені - ${ user.first_name } ${ user.last_name || '' }`
+  }
+  ctx.session.requisites = req
+  ctx.replyWithMarkdown(`\`Налаштування реквізитів\n   \`Ви можете вказати вигляд закінчення кожного повідомлення про збір коштів (текст, номер банківської картки).\n\`   \`Вигляд на даний момент:\n\`❕${
+    req.message}\`\n/done \`- для збереження\``)
+})
+requisites.command('done', ctx => {
+  const { group_id, message } = ctx.session.requisites
+  Requisites.update({ group_id: group_id }, {
+    group_id: group_id,
+    message: message
+  }, { upsert: true })
+    .then(() => ctx.replyWithMarkdown(`\`Налаштування реквізитів\`\nРеквізити успішно налаштовано!`))
+    .catch(err => ctx.replyWithMarkdown(`\`Налаштування реквізитів\`\nВідбула помилка при налаштуванні реквізитів. Спробуйте пізніше.`))
+  ctx.scene.leave()
+})
+requisites.command('cancel', ctx => {
+  ctx.reply('Процес добавлення реквізитів було перервано.')
+  ctx.scene.leave()
+})
+requisites.on('text', ctx => {
+  ctx.session.requisites.message = ctx.message.text
+  ctx.replyWithMarkdown(`\`Налаштування реквізитів\n   \`Ви можете вказати вигляд закінчення кожного повідомлення про збір коштів (текст, номер банківської картки).\n\`   \`Вигляд на даний момент:\n\`❕${
+    ctx.message.text}\`\n/done \`- для збереження\``)
+  })
+requisites.leave(ctx => ctx.session.requisites = undefined)
+
+// MONEY
+const money = new Scene('money')
+
+money.enter(async ctx => {
+  const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+  const req = await Requisites.findOne({ group_id: group_id })
+  if(req) {
+    ctx.session.money = {
+      group_id: group_id,
+      message: req.message,
+      card: req.card
+    }
+    ctx.replyWithMarkdown('Введіть причину збору коштів та суму:')
+  } else ctx.scene.enter('requisites')
+})
+money.command(['cancel', 'exit'], ctx => {
+  ctx.reply('Процес було перервано.')
+  ctx.scene.leave()
+})
+money.on('text', ctx => {
+  const { group_id, message } = ctx.session.money
+  const text = ctx.message.text
+  ctx.telegram.sendMessage(group_id, `\`Збір коштів 📢\`\n${ text }\n\`❕${ message }\``, Extra.markdown()).then(() => {
+    ctx.reply('Повідомлення успішно відправлено!')
+    ctx.scene.leave()
+  })
+})
+money.leave(ctx => ctx.session.money = undefined)
+
+_Stage.register(reg, poll, schedule, homework, announce, requisites, money)
 
 
 

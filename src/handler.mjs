@@ -3,7 +3,7 @@ import Markup from 'telegraf/markup'
 import Extra from 'telegraf/extra'
 import Callbacks from './callbacks'
 import Stage from './stage'
-import Watch from './watch'
+import Views from './views'
 import Chat from './chat'
 
 import { Groups, Polls, Schedules } from './models'
@@ -12,12 +12,7 @@ const Handler = new Composer()
 
 Handler.use(Stage)
 
-Handler.command('test', ctx => {
-  ctx.telegram.sendMessage(ctx.message.from.id, 'Test message')
-    .then(data => console.log(data))
-    .catch(err => console.error(err))
-})
-
+Handler.command('test', ctx => console.log(ctx.message.from))
 
 Handler.on('callback_query', ctx => Callbacks.answer(ctx))
 
@@ -104,28 +99,7 @@ Handler.command('schedule', async ctx => {
     const group = await Groups.findOne({ admin_id: ctx.message.from.id })
     if(group && group.group_id) ctx.scene.enter('schedule')
     else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
-  } else {
-    const { schedule, homework } = await Schedules.findOne({ group_id: ctx.message.chat.id })
-    const emoji = [ '🎑', '🏞', '🌅', '🌄', '🌇', '🏙', '🌃', '🌌', '🌉', '🌁' ]
-    const days = [ 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця' ]
-    const _days = [ 'mo', 'tu', 'we', 'th', 'fr' ]
-    const _day = new Date().getDay()
-    const hour = new Date().getHours()
-    const day = _day > 0 && _day < 6 ? hour > 14 && _day < 5 ? _day : _day-1 : 0
-    const str = schedule[day].map((sub, n) => { if(sub || n>0) return `${ n }) ${
-      sub ? homework[day][n] ? `${ sub } \`-\` ${ homework[day][n].text.join(' \`-\` ') } ${
-      homework[day][n].media.map(() => { return emoji[Math.floor(Math.random() * 10)]}).join('')}` : sub : `\`[вікно]\`` }` })
-    if(!str[0]) str.shift()
-    ctx.replyWithMarkdown(`\`Розклад - ${ days[day] }:\`\n${ str.join('\n') }`,
-      Extra.markup(m => m.inlineKeyboard([
-        m.callbackButton('💬', `schedule-media-${ _days[day] }`),
-        m.callbackButton('Пн', `schedule-mo`),
-        m.callbackButton('Вт', `schedule-tu`),
-        m.callbackButton('Ср', `schedule-we`),
-        m.callbackButton('Чт', `schedule-th`),
-        m.callbackButton('Пт', `schedule-fr`)]
-      )))
-  }
+  } else Views.groupSchedule({ group_id: ctx.message.chat.id, telegram: ctx.telegram })
 })
 
 Handler.command('delschedule', async ctx => {
@@ -149,6 +123,33 @@ Handler.command('homework', async ctx => {
       if(schedule.find(day => day.find(sub => sub))) ctx.scene.enter('homework')
       else ctx.replyWithMarkdown(`Вибачте, але ви не заповнили *розклад*.`)
     } else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
+  } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
+})
+
+Handler.command('announce', async ctx => {
+  if(ctx.message.chat.type === 'private') {
+    // const group = await Groups.findOne({ admin_id: ctx.message.from.id })
+    const group = await Groups.findOne({ members: ctx.message.from.id })
+    if(group && group.group_id) ctx.scene.enter('announce')
+    else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
+  } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
+})
+
+Handler.command('money', async ctx => {
+  if(ctx.message.chat.type === 'private') {
+    // const group = await Groups.findOne({ admin_id: ctx.message.from.id })
+    const group = await Groups.findOne({ members: ctx.message.from.id })
+    if(group && group.group_id) ctx.scene.enter('money')
+    else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
+  } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
+})
+
+Handler.command('requisites', async ctx => {
+  if(ctx.message.chat.type === 'private') {
+    // const group = await Groups.findOne({ admin_id: ctx.message.from.id })
+    const group = await Groups.findOne({ members: ctx.message.from.id })
+    if(group && group.group_id) ctx.scene.enter('requisites')
+    else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
   } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
 })
 

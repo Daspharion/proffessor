@@ -2,10 +2,12 @@ import Telegraf from 'telegraf'
 import Mongoose from 'mongoose'
 import Session from 'telegraf/session'
 import Handler from './src/handler'
+import Watcher from './src/watcher'
 
 import { NODE, MONGO, TELEGRAM, WEBHOOK, PORT } from './src/config'
 
 const Bot = new Telegraf(TELEGRAM)
+const Watch = new Watcher(Bot.telegram)
 
 Bot.use(Session())
 Bot.use(Handler)
@@ -32,10 +34,6 @@ Mongoose.connect(MONGO[NODE]).then(db => {
 })
 
 // TODO:
-// 4) BETTER ОГОЛОШЕННЯ:
-//    -) Кожного дня в XX:00 відправити в кожну групу розклад
-//    -) Оголошення в групу через в бажаній годині
-//    -)
 // x) BETTER HOLIDAYS
 //    -) Файл із данаими про кожний день : { '0101': { message: 'новий рік.', holidays: [] }, '0102': { ... }  }
 //    -) Стек-масив із абзацами на загальне повідомлення. Джойниться новими рядками.
@@ -43,4 +41,3 @@ Mongoose.connect(MONGO[NODE]).then(db => {
 //    -) Перевірка сьогоднішнього дня на дні нарождення: Users.find({ day: date.getDay(), month: date.getMonth() }).then(user => user.forEach(u => message.push(`Сьогодні .... святкує день народення`)))
 //    -) Перевірка на ювілей ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //    -) Функція реєстрації людини (Ім'я, Прізвище, ПБ, ДН)
-// x) ОГЛОШЕННЯ ПРО ЗБІР КОШТІВ

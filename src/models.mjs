@@ -29,9 +29,27 @@ const _schedules = new Schema({
   homework      : [ [ { _id: false, text: [ String ], media: [ String ] } ] ]
 }, { versionKey: false })
 
+// ANNOUNCEMENTS
+const _announcements = new Schema({
+  group_id      : Number,
+  text          : String,
+  min           : Number,
+  hour          : Number,
+  day           : Number,
+  month         : Number,
+  year          : Number
+}, { versionKey: false })
+
+// REQUISITES
+const _requisites = new Schema({
+  group_id      : { type: Number, unique: true },
+  message       : String
+}, { versionKey: false })
 
 const Groups = Mongoose.model('groups', _groups)
 const Polls = Mongoose.model('polls', _polls)
 const Schedules = Mongoose.model('schedules', _schedules)
+const Announcements = Mongoose.model('announcements', _announcements)
+const Requisites = Mongoose.model('requisites', _requisites)
 
-export { Groups, Polls, Schedules }
+export { Groups, Polls, Schedules, Announcements, Requisites }

@@ -128,8 +128,7 @@ Handler.command('homework', async ctx => {
 
 Handler.command('announce', async ctx => {
   if(ctx.message.chat.type === 'private') {
-    // const group = await Groups.findOne({ admin_id: ctx.message.from.id })
-    const group = await Groups.findOne({ members: ctx.message.from.id })
+    const group = await Groups.findOne({ admin_id: ctx.message.from.id })
     if(group && group.group_id) ctx.scene.enter('announce')
     else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
   } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
@@ -137,8 +136,7 @@ Handler.command('announce', async ctx => {
 
 Handler.command('money', async ctx => {
   if(ctx.message.chat.type === 'private') {
-    // const group = await Groups.findOne({ admin_id: ctx.message.from.id })
-    const group = await Groups.findOne({ members: ctx.message.from.id })
+    const group = await Groups.findOne({ admin_id: ctx.message.from.id })
     if(group && group.group_id) ctx.scene.enter('money')
     else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
   } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
@@ -146,8 +144,7 @@ Handler.command('money', async ctx => {
 
 Handler.command('requisites', async ctx => {
   if(ctx.message.chat.type === 'private') {
-    // const group = await Groups.findOne({ admin_id: ctx.message.from.id })
-    const group = await Groups.findOne({ members: ctx.message.from.id })
+    const group = await Groups.findOne({ admin_id: ctx.message.from.id })
     if(group && group.group_id) ctx.scene.enter('requisites')
     else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
   } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)

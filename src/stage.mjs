@@ -5,7 +5,7 @@ import Stage from 'telegraf/stage'
 import Extra from 'telegraf/extra'
 import Views from './views'
 
-import { Groups, Polls, Schedules, Announcements, Requisites } from './models'
+import { Groups, Polls, Schedules, Announcements, Requisites, Users } from './models'
 
 const _Stage = new Stage()
 
@@ -392,7 +392,74 @@ money.on('text', ctx => {
 })
 money.leave(ctx => ctx.session.money = undefined)
 
-_Stage.register(reg, poll, schedule, homework, announce, requisites, money)
+// ADDUSER
+const adduser = new Scene('adduser')
+
+adduser.enter(async ctx => {
+  const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+  ctx.session.adduser = { group_id: group_id }
+  ctx.replyWithMarkdown('Введіть, будь ласка, інформацію про людину (ПІБ, дата народження, стать) в наступному форматі:\n\`Прізвище Ім\'я та по Батькові ДД ММ РРРР Ч/Ж\`')
+})
+adduser.command(['cancel', 'exit'], ctx => {
+  ctx.reply('Процес добавлення користувача було перервано.')
+  ctx.scene.leave()
+})
+adduser.on('text', ctx => {
+  const { group_id } = ctx.session.adduser
+  const text = ctx.message.text.split(' ')
+  if(text.length > 6) {
+    const dob = [ parseInt(text[3]), parseInt(text[4]), parseInt(text[5]) ]
+    if(dob[0] > 0 && dob[0] < 32 && dob[1] > 0 && dob[1] < 13 && dob[2] > 0 && dob[2] <= new Date().getFullYear()) {
+      if(text[6] === 'Ж' || text[6] === 'Ч') {
+        const sex = text[6] === 'Ч' ? true : false
+        Users.create({
+          group_id: group_id,
+          first_name: text[1],
+          last_name: text[0],
+          middle_name: text[2],
+          dob: new Date(dob[2], dob[1]-1, dob[0]),
+          sex: sex
+        }).then(() => {
+          ctx.reply('Людину успішно добавлено!')
+          ctx.scene.leave()
+        })
+      } else ctx.replyWithMarkdown('Вибачте, але я не зумів розпізнати стать (Ч/Ж)\n/cancel - для відміни')
+    } else ctx.replyWithMarkdown('Вибачте, але я не зумів розпізнати дату народження\n/cancel - для відміни')
+  } else ctx.replyWithMarkdown('Вибачте, але ви вказали неповну інформацію, необхідний формат:\n\`Прізвище Ім\'я та по Батькові ДД ММ РРРР Ч/Ж\`')
+})
+adduser.leave(ctx => ctx.session.adduser = undefined)
+
+// DELUSER
+const deluser = new Scene('deluser')
+
+deluser.enter(async ctx => {
+  const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+  const users = await Users.find({ group_id: group_id })
+  ctx.session.deluser = {
+    group_id: group_id,
+    users: users
+  }
+  ctx.replyWithMarkdown('Виберіть людину, яку ви бажаєте витерти:',
+    Markup.keyboard(users.map(({ first_name, last_name, middle_name }) => { return last_name+' '+first_name+' '+middle_name }), { columns: 1 }).resize().extra())
+})
+deluser.command(['cancel', 'exit'], ctx => {
+  ctx.reply('Процес видалення користувача було перервано.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+deluser.on('text', ctx => {
+  const { group_id, users } = ctx.session.deluser
+  const text = ctx.message.text.split(' ')
+  const user = users.find(u => text[0] === u.last_name && text[1] === u.first_name && u.middle_name === text[2])
+  if(user) {
+    Users.remove({ _id: user._id }).then(() => {
+      ctx.reply('Користувача успішно видалено.', Extra.markup((m) => m.removeKeyboard()))
+      ctx.scene.leave()
+    })
+  } else ctx.reply('Вибачте, але такого користувача немає!\n/cancel - для відміни')
+})
+deluser.leave(ctx => ctx.session.deluser = undefined)
+
+_Stage.register(reg, poll, schedule, homework, announce, requisites, money, adduser, deluser)
 
 
 

@@ -40,4 +40,3 @@ Mongoose.connect(MONGO[NODE]).then(db => {
 //    -) Перевірка сьогоднішнього дня на іменини: if(holidays) holidays.forEach(n => Users.find({ name: n }).then(user => user.forEach(u => message.push(`Сьогодні ${ u.name } ${ u.middlename }...`))))
 //    -) Перевірка сьогоднішнього дня на дні нарождення: Users.find({ day: date.getDay(), month: date.getMonth() }).then(user => user.forEach(u => message.push(`Сьогодні .... святкує день народення`)))
 //    -) Перевірка на ювілей ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//    -) Функція реєстрації людини (Ім'я, Прізвище, ПБ, ДН)

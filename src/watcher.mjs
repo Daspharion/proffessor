@@ -4,8 +4,9 @@ import { Groups, Schedules, Announcements } from './models'
 export default class Watcher {
   constructor(telegram) {
     this.telegram = telegram
+    const now = new Date()
     // STARTUP
-    console.log(`> Starting up WATCH @ ${ new Date() }`)
+    console.log(`> Starting up WATCH @ ${ now }`)
 
     // REG_ID CLEANUP
     Groups.update({}, { reg_id: undefined })
@@ -26,8 +27,13 @@ export default class Watcher {
     setTimeout(() => {
       this.schedule()
       setInterval(() => this.schedule(), 864e5)
-    }, Math.abs(new Date().setHours(20,0,0,0) - new Date()))
+    }, now.getHours() < 20 ? new Date().setHours(20,0,0,0) - now : new Date().setHours(24,0,0,0) - now + 72e6)
 
+    // GOOD MORNING
+    setTimeout(() => {
+      this.goodmorning()
+      setInterval(() => this.goodmorning(), 864e5)
+    }, now.getHours() < 7 ? new Date().setHours(7,0,0,0) - now : new Date().setHours(24,0,0,0) - now + 252e5)
   }
   cleanhw() {
     const day = new Date().getDay()-1
@@ -58,6 +64,9 @@ export default class Watcher {
         console.log(`# WATCH: Removed ${ counter[1] } outdated announcements`)
       }, 5000)
     })
+  }
+  goodmorning() {
+    
   }
 }
 

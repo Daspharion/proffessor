@@ -151,13 +151,28 @@ Handler.command('requisites', async ctx => {
   } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
 })
 
+Handler.command('adduser', async ctx => {
+  if(ctx.message.chat.type === 'private') {
+    const group = await Groups.findOne({ admin_id: ctx.message.from.id })
+    if(group && group.group_id) ctx.scene.enter('adduser')
+    else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
+  } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
+})
+
+Handler.command('deluser', async ctx => {
+  if(ctx.message.chat.type === 'private') {
+    const group = await Groups.findOne({ admin_id: ctx.message.from.id })
+    if(group && group.group_id) ctx.scene.enter('deluser')
+    else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
+  } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
+})
+
 Handler.hears(Chat.lstnr, ctx => {
   const msg = ctx.message
   const pattern = Chat.parse(ctx.match[0])
   const str = Chat.reply(pattern, { id: msg.from.id, date: msg.date })
   ctx.reply(str)
 })
-
 
 
 export default Handler

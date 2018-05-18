@@ -46,10 +46,21 @@ const _requisites = new Schema({
   message       : String
 }, { versionKey: false })
 
+// USERS
+const _users = new Schema({
+  group_id      : Number,
+  first_name    : String,
+  last_name     : String,
+  middle_name   : String,
+  dob           : Date,
+  sex           : Boolean
+}, { versionKey: false })
+
 const Groups = Mongoose.model('groups', _groups)
 const Polls = Mongoose.model('polls', _polls)
 const Schedules = Mongoose.model('schedules', _schedules)
 const Announcements = Mongoose.model('announcements', _announcements)
 const Requisites = Mongoose.model('requisites', _requisites)
+const Users = Mongoose.model('users', _users)
 
-export { Groups, Polls, Schedules, Announcements, Requisites }
+export { Groups, Polls, Schedules, Announcements, Requisites, Users }

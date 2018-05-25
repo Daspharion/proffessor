@@ -7,7 +7,6 @@ import Watcher from './src/watcher'
 import { NODE, MONGO, TELEGRAM, WEBHOOK, PORT } from './src/config'
 
 const Bot = new Telegraf(TELEGRAM)
-const Watch = new Watcher(Bot.telegram)
 
 Bot.use(Session())
 Bot.use(Handler)
@@ -32,11 +31,3 @@ Mongoose.connect(MONGO[NODE]).then(db => {
   console.error(`! Error: ${ err.message }`)
   process.exit(1)
 })
-
-// TODO:
-// x) BETTER HOLIDAYS
-//    -) Файл із данаими про кожний день : { '0101': { message: 'новий рік.', holidays: [] }, '0102': { ... }  }
-//    -) Стек-масив із абзацами на загальне повідомлення. Джойниться новими рядками.
-//    -) Перевірка сьогоднішнього дня на іменини: if(holidays) holidays.forEach(n => Users.find({ name: n }).then(user => user.forEach(u => message.push(`Сьогодні ${ u.name } ${ u.middlename }...`))))
-//    -) Перевірка сьогоднішнього дня на дні нарождення: Users.find({ day: date.getDay(), month: date.getMonth() }).then(user => user.forEach(u => message.push(`Сьогодні .... святкує день народення`)))
-//    -) Перевірка на ювілей ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

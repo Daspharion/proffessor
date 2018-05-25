@@ -417,7 +417,9 @@ adduser.on('text', ctx => {
           first_name: text[1],
           last_name: text[0],
           middle_name: text[2],
-          dob: new Date(dob[2], dob[1]-1, dob[0]),
+          dob_day: dob[0],
+          dob_month: dob[1],
+          dob_year: dob[2],
           sex: sex
         }).then(() => {
           ctx.reply('Людину успішно добавлено!')

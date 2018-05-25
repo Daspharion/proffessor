@@ -1,9 +1,13 @@
+import Telegraf from 'telegraf'
+import Extra from 'telegraf/extra'
+import Calendar from './calendar'
 import Views from './views'
-import { Groups, Schedules, Announcements } from './models'
+import { TELEGRAM } from './config'
+import { Groups, Schedules, Announcements, Users } from './models'
 
-export default class Watcher {
+export default new class Watcher {
   constructor(telegram) {
-    this.telegram = telegram
+    this.Bot = new Telegraf(TELEGRAM)
     const now = new Date()
     // STARTUP
     console.log(`> Starting up WATCH @ ${ now }`)
@@ -26,14 +30,14 @@ export default class Watcher {
     // AUTO SCHEDULE
     setTimeout(() => {
       this.schedule()
-      setInterval(() => this.schedule(), 864e5)
+      setInterval(() => { if(now.getDay() < 5) this.schedule() }, 864e5)
     }, now.getHours() < 20 ? new Date().setHours(20,0,0,0) - now : new Date().setHours(24,0,0,0) - now + 72e6)
 
     // GOOD MORNING
-    setTimeout(() => {
+    // setTimeout(() => {
       this.goodmorning()
       setInterval(() => this.goodmorning(), 864e5)
-    }, now.getHours() < 7 ? new Date().setHours(7,0,0,0) - now : new Date().setHours(24,0,0,0) - now + 252e5)
+    // }, now.getHours() < 7 ? new Date().setHours(7,0,0,0) - now : new Date().setHours(24,0,0,0) - now + 252e5)
   }
   cleanhw() {
     const day = new Date().getDay()-1
@@ -45,7 +49,7 @@ export default class Watcher {
   schedule() {
     Groups.find({ group_id: { $ne: null }}).then(groups => {
       console.log(`# WATCH: Sending schedules for ${ groups.length } groups`)
-      groups.forEach((group, n) => setTimeout(() => Views.groupSchedule({ group_id: group.group_id, telegram: this.telegram }), Math.trunc(n/10)*5e3))
+      groups.forEach((group, n) => setTimeout(() => Views.groupSchedule({ group_id: group.group_id, telegram: this.Bot.telegram }), Math.trunc(n/10)*5e3))
     }).catch(err => console.error(`! Error: while sending out schedules: ${ err.message }`))
   }
   announcements() {
@@ -66,7 +70,43 @@ export default class Watcher {
     })
   }
   goodmorning() {
-    
+    const now = new Date()
+    Groups.find({}).then(groups => {
+      groups.forEach(async (group, n) => {
+        const message = [ '*Доброго ранку!* 🌤' ]
+        const holidays = []
+        const birthdays = []
+        // ABOUT TODAY
+        const m = new Date().getMonth()+1
+        const d = new Date().getDate()
+        const i = `${ m > 9 ? m : '0'+m }${ d > 9 ? d : '0'+d }`
+        if(Calendar[i]) message.push('Сьогодні '+Calendar[i][0])
+        else message.push('Цитата дня: '+Calendar.default[Math.floor(Math.random() * Calendar.default.length)])
+        // HOLIDAYS CHECK
+        if(Calendar[i] && Calendar[i][1]) {
+          for(let name of Calendar[i][1])
+            (await Users.find({ first_name: { $regex: new RegExp(name, 'i') }}))
+              .forEach(({ first_name, last_name, middle_name }) => holidays.push(`${ last_name } ${ first_name } ${ middle_name }`))
+          const l = holidays.length
+          if(l > 0) {
+            if(l > 1) holidays[l-2] += ` та ${ holidays.pop() }`
+            message.push('Сьогодні святкує свої іменини '+holidays.join(', ')+' 🎉')
+          }
+        }
+        // BIRTHDAY CHECK
+        (await Users.find({ dob_day: now.getDate(), dob_month: now.getMonth()+1 }))
+          .forEach(({ first_name, last_name, middle_name, dob_year }) => birthdays.push(`${ last_name } ${ first_name } ${ middle_name }${
+            (now.getFullYear() - dob_year)%10 ? '' : ` (ювілей - ${ now.getFullYear() - dob_year } років 🙌)` }`))
+        const l = birthdays.length
+        if(l > 0) {
+          if(l > 1) birthdays[l-2] += ` та ${ birthdays.pop() }`
+          message.push(`Також ${ birthdays.join(', ') } ${ l > 1 ? 'святкують свої дні народження' : 'святкує свій день народження' } 🎂`)
+        }
+
+
+        setTimeout(() => this.Bot.telegram.sendMessage(group.group_id, message.join('\n\` \`'), Extra.markdown()), Math.trunc(n/10)*5e3)
+      })
+    }).catch(err => console.error(err))
   }
 }
 

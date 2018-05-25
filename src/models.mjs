@@ -52,7 +52,9 @@ const _users = new Schema({
   first_name    : String,
   last_name     : String,
   middle_name   : String,
-  dob           : Date,
+  dob_day       : Number,
+  dob_month     : Number,
+  dob_year      : Number,
   sex           : Boolean
 }, { versionKey: false })
 

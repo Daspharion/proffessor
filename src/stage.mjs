@@ -663,8 +663,9 @@ const badgrade = new WizardScene('badgrade',
       if(parents[0]) {
         badgrade.hasparent = true
         badgrade.parents = parents.map(p => p.number)
+        const keyboard = parents.map(p => p.name)
         ctx.replyWithMarkdown('Оберіть кому відправити смс:',
-          Markup.keyboard(parents.map(p => p.name).concat('❗️ УСІМ ❗️'), { columns: 2 }).resize().extra())
+          Markup.keyboard(keyboard[1] ? keyboard.concat('❗️ УСІМ ❗️') : keyboard, { columns: 2 }).resize().extra())
       } else ctx.replyWithMarkdown('Напишіть телефонний номер отримувача:', Extra.markup((m) => m.removeKeyboard()))
       ctx.wizard.next()
     } else ctx.replyWithMarkdown('Я приймаю виключно *текст*!')

@@ -6,6 +6,11 @@ const
   MONGO = {
     development: 'mongodb://localhost:27017/admin',
     production: process.env.MONGODB
+  },
+  SMSCLUB = {
+    login: process.env.SMSCLUB_LOGIN,
+    token: process.env.SMSCLUB_TOKEN,
+    name: process.env.SMSCLUB_NAME
   }
 
-export { NODE, PORT, TELEGRAM, WEBHOOK, MONGO }
+export { NODE, PORT, TELEGRAM, WEBHOOK, MONGO, SMSCLUB }

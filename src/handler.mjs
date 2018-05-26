@@ -12,7 +12,9 @@ const Handler = new Composer()
 
 Handler.use(Stage)
 
-Handler.command('test', ctx => console.log(ctx.message.from))
+Handler.command('test', ctx => {
+  ctx.reply('TEST MESSAGE', Extra.markup(Markup.forceReply()))
+})
 
 Handler.on('callback_query', ctx => Callbacks.answer(ctx))
 
@@ -163,6 +165,36 @@ Handler.command('deluser', async ctx => {
   if(ctx.message.chat.type === 'private') {
     const group = await Groups.findOne({ admin_id: ctx.message.from.id })
     if(group && group.group_id) ctx.scene.enter('deluser')
+    else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
+  } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
+})
+
+Handler.command('absent', async ctx => {
+  if(ctx.message.chat.type === 'private') {
+    const group = await Groups.findOne({ admin_id: ctx.message.from.id })
+    if(group && group.group_id) ctx.scene.enter('absent')
+    else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
+  } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
+})
+
+Handler.command('visiting', async ctx => {
+  if(ctx.message.chat.type === 'private') {
+    const group = await Groups.findOne({ admin_id: ctx.message.from.id })
+    if(group && group.group_id) ctx.scene.enter('visiting')
+    else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
+  } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
+})
+Handler.command('addparents', async ctx => {
+  if(ctx.message.chat.type === 'private') {
+    const group = await Groups.findOne({ admin_id: ctx.message.from.id })
+    if(group && group.group_id) ctx.scene.enter('addparents')
+    else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
+  } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
+})
+Handler.command('badgrade', async ctx => {
+  if(ctx.message.chat.type === 'private') {
+    const group = await Groups.findOne({ admin_id: ctx.message.from.id })
+    if(group && group.group_id) ctx.scene.enter('badgrade')
     else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
   } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
 })

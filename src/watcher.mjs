@@ -34,10 +34,10 @@ export default new class Watcher {
     }, now.getHours() < 20 ? new Date().setHours(20,0,0,0) - now : new Date().setHours(24,0,0,0) - now + 72e6)
 
     // GOOD MORNING
-    // setTimeout(() => {
+    setTimeout(() => {
       this.goodmorning()
       setInterval(() => this.goodmorning(), 864e5)
-    // }, now.getHours() < 7 ? new Date().setHours(7,0,0,0) - now : new Date().setHours(24,0,0,0) - now + 252e5)
+    }, now.getHours() < 7 ? new Date().setHours(7,0,0,0) - now : new Date().setHours(24,0,0,0) - now + 252e5)
   }
   cleanhw() {
     const day = new Date().getDay()-1

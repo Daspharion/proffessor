@@ -28,7 +28,7 @@
   "dependencies": {
     "mongoose": "^5.0.16",
     "telegraf": "^3.21.1",
-    "windows-1251": "^3.21.1"
+    "windows-1251": "^1.0.0"
   },
   "engines": {
     "node": "9.11.1"

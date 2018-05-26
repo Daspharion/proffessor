@@ -629,10 +629,15 @@ const badgrade = new WizardScene('badgrade',
   async (ctx) => {
     const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
     const users = await Users.find({ group_id: group_id })
-    ctx.session.badgrade = { group_id: group_id }
-    ctx.replyWithMarkdown('Оберіть бажаного студента:',
-      Markup.keyboard(users.map(user => `${ user.last_name } ${ user.first_name }`), { columns: 2 }).resize().extra())
-    ctx.wizard.next()
+    if(users[0]) {
+      ctx.session.badgrade = { group_id: group_id }
+      ctx.replyWithMarkdown('Оберіть бажаного студента:',
+        Markup.keyboard(users.map(user => `${ user.last_name } ${ user.first_name }`), { columns: 2 }).resize().extra())
+      ctx.wizard.next()
+    } else {
+      ctx.replyWithMarkdown('У вас відсутня інформація про студентів.\n/adduser - \`щоб добавити її\`')
+      ctx.scene.leave()
+    }
   },
   async (ctx) => {
     const badgrade = ctx.session.badgrade

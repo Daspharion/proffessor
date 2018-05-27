@@ -99,7 +99,7 @@ poll.command('cancel', ctx => {
 const schedule = new Scene('schedule')
 
 schedule.enter(async ctx => {
-  const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+  const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
   const schedule = await Schedules.findOne({ group_id: group_id })
   Object.assign(schedule, {
     days: [ 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця' ],
@@ -157,7 +157,7 @@ schedule.leave(ctx => ctx.session.schedule = undefined)
 // HOMEWORK
 const homework = new WizardScene('homework',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
     const schedule = await Schedules.findOne({ group_id: group_id })
     ctx.session.emoji = [ '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣' ]
     ctx.session.days = [ 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця' ]
@@ -237,7 +237,7 @@ homework.command('cancel', ctx => {
 const announce = new WizardScene('announce',
   async (ctx) => {
     const date = new Date()
-    const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
     ctx.session.announce = {
       group_id: group_id,
       text: null,
@@ -334,7 +334,7 @@ const requisites = new Scene('requisites')
 
 requisites.enter(async ctx => {
   const user = ctx.message.from
-  const { group_id } = await Groups.findOne({ admin_id: user.id })
+  const { group_id } = await Groups.findOne({ admins: user.id })
   const req = (await Requisites.findOne({  group_id: group_id })) || {
     group_id: group_id,
     message: `Прошу передати гроші особисто мені - ${ user.first_name } ${ user.last_name || '' }`
@@ -368,7 +368,7 @@ requisites.leave(ctx => ctx.session.requisites = undefined)
 const money = new Scene('money')
 
 money.enter(async ctx => {
-  const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+  const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
   const req = await Requisites.findOne({ group_id: group_id })
   if(req) {
     ctx.session.money = {
@@ -397,7 +397,7 @@ money.leave(ctx => ctx.session.money = undefined)
 const adduser = new Scene('adduser')
 
 adduser.enter(async ctx => {
-  const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+  const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
   ctx.session.adduser = { group_id: group_id }
   ctx.replyWithMarkdown('Введіть, будь ласка, інформацію про людину (ПІБ, дата народження, стать) в наступному форматі:\n\`Прізвище Ім\'я та по Батькові ДД ММ РРРР Ч/Ж\`')
 })
@@ -436,7 +436,7 @@ adduser.leave(ctx => ctx.session.adduser = undefined)
 const deluser = new Scene('deluser')
 
 deluser.enter(async ctx => {
-  const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+  const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
   const users = await Users.find({ group_id: group_id })
   ctx.session.deluser = {
     group_id: group_id,
@@ -465,7 +465,7 @@ deluser.leave(ctx => ctx.session.deluser = undefined)
 // ABSENT
 const absent = new WizardScene('absent',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
     const users = await Users.find({ group_id: group_id })
     const day = new Date()
     ctx.session.absent = {
@@ -521,7 +521,7 @@ absent.command('cancel', ctx => {
 // VISITING
 const visiting = new WizardScene('visiting',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
     const users = await Users.find({ group_id: group_id })
     ctx.session.visiting = { group_id: group_id }
     ctx.replyWithMarkdown('Оберіть бажаного студента:',
@@ -536,19 +536,33 @@ const visiting = new WizardScene('visiting',
       const day = new Date()
       const message = [ `Студент, ${ user[0] } ${ user[1] }`, '\`Пара | 0 | 1 | 2 | 3 | 4 |\`', '\`--------------------------\`' ]
       const stack = {}
-      let offset = (day.getDay() || 1)-1
-      // if(date.getHour() < 16) offset--
 
       const to = parseInt(''+day.getFullYear()+('0'+(day.getMonth()+1)).slice(-2)+('0'+day.getDate()).slice(-2))
-      const from = to - offset
+      day.setDate(day.getDate()-7)
+      const from = parseInt(''+day.getFullYear()+('0'+(day.getMonth()+1)).slice(-2)+('0'+day.getDate()).slice(-2))
 
       const absent = await Visiting.find({ group_id: visiting.group_id, day: { $gt: from-1, $lt: to+1 }, absent: { $in: student._id } })
-      absent.forEach(e => stack[e.day] ? stack[e.day].push(e.lesson) : stack[e.day] = [e.lesson] )
-      Object.entries(stack).sort((a, b) => b[0]-a[0]).forEach(d => message.push(`\`${ d[0].slice(4, 6)+'/'+d[0].slice(6,8) }| ${ [0,1,2,3,4].map(n => stack[d[0]].indexOf(n) === -1 ? ' ' : 'н').join(' | ') } |\``))
-      message.push(`Всього пропустив: ${ absent.length } ${ absent.length > 4 || absent.length === 0 ? 'занять' : 'заняття' }`)
-      message.push(`За період від ${ (''+from).slice(4, 6)+'/'+(''+from).slice(6,8) } до ${ (''+to).slice(4, 6)+'/'+(''+to).slice(6,8) }`)
-      ctx.replyWithMarkdown(message.join('\n'), Extra.markup((m) => m.removeKeyboard()))
+      if(absent[0]) {
+        absent.forEach(e => stack[e.day] ? stack[e.day].push(e.lesson) : stack[e.day] = [e.lesson] )
+        Object.entries(stack).sort((a, b) => b[0]-a[0]).forEach(d => message.push(`\`${ d[0].slice(4, 6)+'/'+d[0].slice(6,8) }| ${ [0,1,2,3,4].map(n => stack[d[0]].indexOf(n) === -1 ? ' ' : 'н').join(' | ') } |\``))
+        message.push(`Всього пропущено: ${ absent.length } ${ absent.length > 4 || absent.length === 0 ? 'занять' : 'заняття' }`)
+        message.push(`За період від ${ Object.keys(stack).shift().slice(4, 6)+'/'+Object.keys(stack).shift().slice(6,8) } до ${
+          Object.keys(stack).pop().slice(4, 6)+'/'+Object.keys(stack).pop().slice(6,8) }`)
+      } else message.push('Інформація відсутня')
+      ctx.reply('Готово!', Extra.markup((m) => m.removeKeyboard()))
+        .then(() => ctx.replyWithMarkdown(message.join('\n'), Extra.markup(m => m.inlineKeyboard([
+          m.callbackButton('<<', 'visiting-skipleft'),
+          m.callbackButton('<', 'visiting-left'),
+          m.callbackButton('🏠', 'visiting-home'),
+          m.callbackButton('>', 'visiting-right'),
+          m.callbackButton('>>', 'visiting-skipright')]
+      ))))
       ctx.scene.leave()
+      ctx.session.visiting = {
+        group_id: visiting.group_id,
+        student: student,
+        offset: 0
+      }
     } else ctx.replyWithMarkdown('Вибачте, але я не знайшов такого студента')
   }
 )
@@ -563,7 +577,7 @@ visiting.command('cancel', ctx => {
 // ADDPARENTS
 const addparents = new WizardScene('addparents',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
     const users = await Users.find({ group_id: group_id })
     ctx.session.addparents = { group_id: group_id }
     ctx.replyWithMarkdown('Оберіть бажаного студента:',
@@ -627,7 +641,7 @@ addparents.command('cancel', ctx => {
 // BADGRADE
 const badgrade = new WizardScene('badgrade',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admin_id: ctx.message.from.id })
+    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
     const users = await Users.find({ group_id: group_id })
     if(users[0]) {
       ctx.session.badgrade = { group_id: group_id }

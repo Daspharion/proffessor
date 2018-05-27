@@ -49,7 +49,7 @@ export default new class Watcher {
   schedule() {
     Groups.find({ group_id: { $ne: null }}).then(groups => {
       console.log(`# WATCH: Sending schedules for ${ groups.length } groups`)
-      groups.forEach((group, n) => setTimeout(() => Views.groupSchedule({ group_id: group.group_id, telegram: this.Bot.telegram }), Math.trunc(n/10)*5e3))
+      groups.forEach((group, n) => setTimeout(() => Views.groupSchedule(group.group_id), Math.trunc(n/10)*5e3))
     }).catch(err => console.error(`! Error: while sending out schedules: ${ err.message }`))
   }
   announcements() {

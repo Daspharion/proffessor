@@ -4,11 +4,9 @@ const Schema = Mongoose.Schema
 
 // GROUPS
 const _groups = new Schema({
-  group_id      : Number,
+  group_id      : { type: Number, unique: true },
   group_title   : String,
-  admin_id      : { type: Number, unique: true },
-  reg_id        : Number,
-  members       : [ Number ]
+  admins        : [ Number ]
 }, { versionKey : false })
 
 // POLLS

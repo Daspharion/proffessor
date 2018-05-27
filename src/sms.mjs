@@ -5,6 +5,11 @@ import { SMSCLUB } from './config'
 export default new class Sms {
   constructor() {
     this.url = 'https://gate.smsclub.mobi/token/'
+    this.states = {
+      'DELIVRD': 'Доставлено',
+      'ENROUTE': 'Відправлено',
+      'REJECTD': 'Відхилено'
+    }
   }
   send(numbers, text) {
     return new Promise((resolve, reject) => {
@@ -36,7 +41,7 @@ export default new class Sms {
             data.splice(-2, 2)
             data = data.reduce((result, item) => {
               item = item.split(': ')
-              result[item[0]] = item[1]
+              result[item[0]] = this.states[item[1]] || 'Помилка'
               return result
             }, {})
             resolve(data)

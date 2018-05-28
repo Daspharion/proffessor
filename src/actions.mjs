@@ -129,20 +129,19 @@ Handler.action(/^reg/, async ctx => {
     const admins = (await ctx.getChatAdministrators()).map(({ user }) => user.id)
     if(admins.includes(from.id)) {
       const empty = [ undefined, undefined, undefined, undefined, undefined ]
-      if(!type) Schedules.create({
-        group_id: message.chat.id,
-        schedule: [ empty, empty, empty, empty, empty ],
-        homework: [ empty, empty, empty, empty, empty ]
-      }).catch(err => console.log(err))
       Groups.create({
         group_id: message.chat.id,
         type: type,
         group_title: message.chat.title,
         admins: admins
       }).then(() => {
-        ctx.editMessageText('Реєстрацію *успішно* завершено.', Extra.markdown())
-      }).catch(err => console.log(err))
-      // }).catch(err => ctx.reply('Помилка при створенні запису в базі даних. Спробуйте, будь ласка, пізніше.').then(() => ctx.leaveChat(message.chat.id)))
+        if(!type) Schedules.create({
+          group_id: message.chat.id,
+          schedule: [ empty, empty, empty, empty, empty ],
+          homework: [ empty, empty, empty, empty, empty ]
+        }).catch(err => console.log(err))
+      }).catch(err => ctx.reply('Помилка при створенні запису в базі даних. Спробуйте, будь ласка, пізніше.').then(() => ctx.leaveChat(message.chat.id)))
+        .then(() => ctx.editMessageText('Реєстрацію *успішно* завершено.', Extra.markdown())
     } else ctx.answerCbQuery()
   } else ctx.editMessageText('Ви уже зареєстрували *дану бесіду*.', Extra.markdown())
 })

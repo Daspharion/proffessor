@@ -1,13 +1,13 @@
 import Telegraf from 'telegraf'
 import Extra from 'telegraf/extra'
 import Calendar from './calendar'
-import Views from './views'
 import { TELEGRAM } from './config'
 import { Groups, Schedules, Announcements, Users } from './models'
 
 export default new class Watcher {
-  constructor(telegram) {
+  constructor() {
     this.Bot = new Telegraf(TELEGRAM)
+    this.announceStack = []
     const now = new Date()
     // STARTUP
     console.log(`> Starting up WATCH @ ${ now }`)
@@ -56,17 +56,15 @@ export default new class Watcher {
     Announcements.find({}).then(a => {
       const date = new Date()
       let counter = [0, 0]
-      a.forEach(({ _id, group_id, text, min, hour, day, month, year }) => {
+      for(let { _id, group_id, text, min, hour, day, month, year } of a) {
         const diff = new Date(year, month, day, hour, min) - date
         if(diff > 0) {
           if(diff < 864e5)
-            if(Views.announcement(_id, group_id, text, diff, this.telegram)) counter[0]++
+            if(this.sendAnnouncement(_id, group_id, text, diff)) counter[0]++
         } else Announcements.remove({ _id: _id }).then(() => counter[1]++)
-      })
-      setTimeout(() => {
-        console.log(`# WATCH: Loaded ${ counter[0] } announcements`)
-        console.log(`# WATCH: Removed ${ counter[1] } outdated announcements`)
-      }, 5000)
+      }
+      console.log(`# WATCH: Loaded ${ counter[0] } announcements`)
+      console.log(`# WATCH: Removed ${ counter[1] } outdated announcements`)
     })
   }
   goodmorning() {
@@ -107,6 +105,18 @@ export default new class Watcher {
         setTimeout(() => this.Bot.telegram.sendMessage(group.group_id, message.join('\n\` \`'), Extra.markdown()), Math.trunc(n/10)*5e3)
       })
     }).catch(err => console.error(err))
+  }
+  sendAnnouncement(_id, group_id, text, diff) {
+    const index = this.announceStack.indexOf(_id.toString())
+    if(index === -1) {
+      this.announceStack.push(_id.toString())
+      setTimeout(() => {
+        this.Bot.telegram.sendMessage(group_id, `\`Оголошення 📢\`\n${ text }`, Extra.markdown())
+        this.announceStack.splice(index, 1)
+      }, diff)
+      return true
+    }
+    return false
   }
 }
 

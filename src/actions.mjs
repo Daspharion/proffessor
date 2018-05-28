@@ -77,11 +77,11 @@ Handler.action(/^schedule/, async ctx => {
   if(message.chat.type === 'private') {
     const schedule = ctx.session.schedule
     if(schedule) {
-      if(button === 'left') schedule.day < 1 ? schedule.day = 4 : schedule.day--
-      else if(button === 'up') schedule.n < 1 ? schedule.n = 4 : schedule.n--
-      else if(button === 'down') schedule.n > 3 ? schedule.n = 0 : schedule.n++
-      else if(button === 'right') schedule.day > 3 ? schedule.day = 0 : schedule.day++
-      if(button === 'left' || button === 'right') schedule.n = 1
+      if(day === 'left') schedule.day < 1 ? schedule.day = 4 : schedule.day--
+      else if(day === 'up') schedule.n < 1 ? schedule.n = 4 : schedule.n--
+      else if(day === 'down') schedule.n > 3 ? schedule.n = 0 : schedule.n++
+      else if(day === 'right') schedule.day > 3 ? schedule.day = 0 : schedule.day++
+      if(day === 'left' || day === 'right') schedule.n = 1
       ctx.telegram.editMessageText(message.chat.id, message.message_id, null, `\`Розклад\`\n*${ schedule.days[schedule.day] }:*\n${ schedule.schedule[schedule.day].map((sub, n) => {
         return `${ n === schedule.n ? `\`>\`` : `\` \`` } ${ n }) ${ sub ? sub : `\`[вікно]\`` }` }).join('\n')}\n/done \`- для збереження\``,
         Extra.markdown().markup(m => m.inlineKeyboard([
@@ -118,6 +118,32 @@ Handler.action(/^schedule/, async ctx => {
       ))).catch(err => ctx.answerCbQuery())
     }
   }
+})
+
+// REG
+Handler.action(/^reg/, async ctx => {
+  const type = ctx.match.input.split('-')[1] === 'teacher' ? true : false
+  const { message, from } = ctx.update.callback_query
+  const group = await Groups.findOne({ group_id: message.chat.id })
+  if(!group) {
+    const admins = (await ctx.getChatAdministrators()).map(({ user }) => user.id)
+    if(admins.includes(from.id)) {
+      const empty = [ undefined, undefined, undefined, undefined, undefined ]
+      if(!type) Schedules.create({
+        group_id: message.chat.id,
+        schedule: [ empty, empty, empty, empty, empty ],
+        homework: [ empty, empty, empty, empty, empty ]
+      }).catch(err => console.log(err))
+      Groups.create({
+        group_id: message.chat.id,
+        type: type,
+        group_title: message.chat.title,
+        admins: admins
+      }).then(() => {
+        ctx.editMessageText('Реєстрацію *успішно* завершено.', Extra.markdown())
+      }).catch(err => ctx.reply('Помилка при створенні запису в базі даних. Спробуйте, будь ласка, пізніше.').then(() => ctx.leaveChat(message.chat.id)))
+    } else ctx.answerCbQuery()
+  } else ctx.editMessageText('Ви уже зареєстрували *дану бесіду*.', Extra.markdown())
 })
 
 

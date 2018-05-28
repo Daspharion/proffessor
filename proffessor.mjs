@@ -2,7 +2,6 @@ import Telegraf from 'telegraf'
 import Mongoose from 'mongoose'
 import Session from 'telegraf/session'
 import Handler from './src/handler'
-import Watcher from './src/watcher'
 
 import { NODE, MONGO, TELEGRAM, WEBHOOK, PORT } from './src/config'
 

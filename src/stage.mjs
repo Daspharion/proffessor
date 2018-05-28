@@ -3,34 +3,43 @@ import Scene from 'telegraf/scenes/base'
 import Markup from 'telegraf/markup'
 import Stage from 'telegraf/stage'
 import Extra from 'telegraf/extra'
-import Views from './views'
+import Watcher from './watcher'
 import Sms from './sms'
 
 import { Groups, Polls, Schedules, Announcements, Requisites, Users, Visiting, Parents, GroupSms } from './models'
 
 const _Stage = new Stage()
 
-// REGISTER
-const reg = new Scene('reg')
+//GET GROUP
+const getgroup = new Scene('getgroup')
 
-reg.enter(async ctx => {
-  const msg = ctx.message
-  const members = {
-    reg: (await Groups.findOne({ group_id: msg.chat.id })).members.length,
-    all: await ctx.getChatMembersCount(msg.chat.id)
+getgroup.enter(async ctx => {
+  const getgroup = ctx.session.getgroup
+  if(getgroup) {
+    const groups = await Groups.find({ admins: getgroup.user_id })
+    if('type' in getgroup) groups.filter(g => g.type === type)
+    getgroup.groups = groups
+    ctx.reply('Виберіть, будь ласка, необхідну бесіду:',
+      Markup.keyboard(groups.map(({ group_title }) => group_title), { columns: 2 }).resize().extra())
+  } else {
+    ctx.reply('Відбулась невідома помилка. Спробуйте, будь ласка, ще раз.')
+    ctx.scene.leave()
   }
-  ctx.reply(`\`Реєстрація користувачів\`\nДля реєстрації натисніть, будь ласка, на чекмарк\n/cancel\` - для зупинки процесу\`\n\`Статус: ${ members.reg }/${ members.all-1 }\``,
-    Extra.markdown().markup(m => m.inlineKeyboard([ m.callbackButton('✔️', 'register') ])))
-    .then(({ message_id }) => Groups.update({ group_id: msg.chat.id }, { reg_id: message_id }))
 })
-reg.leave(ctx => {
-  const msg = ctx.message || ctx.update.callback_query.message
-  Groups.findOne({ group_id: msg.chat.id }).then(async group => {
-    await ctx.telegram.deleteMessage(msg.chat.id, group.reg_id)
-    await Groups.update({ group_id: msg.chat.id }, { reg_id: undefined })
-  }).catch(err => console.log(err))
+getgroup.command(['cancel', 'exit'], ctx => {
+  ctx.reply('Процес вибору бесіди було перервано.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
 })
-reg.command('cancel', ctx => ctx.scene.leave())
+getgroup.on('text', ctx => {
+  const getgroup = ctx.session.getgroup
+  const group = getgroup.groups.find(g => g.group_title === ctx.message.text)
+  if(group) {
+    ctx.replyWithMarkdown(`Обрана бесіда - \`${ ctx.message.text }\``, Extra.markup((m) => m.removeKeyboard()))
+    ctx.scene.enter(getgroup.next)
+    ctx.session[getgroup.next] = { group_id: group.group_id }
+  } else ctx.reply('Вибачте, але я не знайшов дану бесіду')
+})
+getgroup.leave(ctx => ctx.session.getgroup = undefined)
 
 // NEW POLL
 const poll = new WizardScene('newpoll',
@@ -42,54 +51,45 @@ const poll = new WizardScene('newpoll',
   },
   async (ctx) => {
     const { id, from, chat, text } = ctx.message
-    ctx.session.poll = {
+    Object.assign(ctx.session.newpoll, {
       user_id: from.id,
       title: text,
       answers: [],
       voters: []
-    }
+    })
     ctx.reply('Добре, а тепер напишіть мені варіанти відповідей (кожне у окремому повідомленні).')
     ctx.wizard.next()
   },
   async (ctx) => {
+    const poll = ctx.session.newpoll
     const msg = ctx.message
-    const length = ctx.session.poll.answers.length
+    const length = ctx.session.newpoll.answers.length
     if(msg.text === '/done' || length > 6) {
-      if(length > 6) ctx.session.poll.answers.push({ text: msg.text, votes: 0 })
+      if(length > 6) poll.answers.push({ text: msg.text, votes: 0 })
       if(length < 2) ctx.reply('Необхідно мінімум два варіанти відповідей.')
       else {
-        const q = await Groups.find({ members: ctx.message.from.id })
-        ctx.reply('Вкажіть, будь ласка, в котрій бесіді в бажаєте провести опитування:',
-          Markup.keyboard(q.map(({ group_title }) => { return group_title })).oneTime().resize().extra())
-        ctx.wizard.next()
+        ctx.telegram.sendMessage(poll.group_id,
+          `\`Голосування 📢\`\n*${ poll.title }*\n\`Варіанти відповідей:\`\n${ poll.answers.map((e, n) => { return `${ `\` \` ` }${ String.fromCharCode(65+n) } \`[0%]\`: ${ e.text } `}).join('\n') }\n\`Всього голосів: 0\``,
+          Extra.markdown().markup(m => m.inlineKeyboard(poll.answers.map((e, n) => { return  m.callbackButton(String.fromCharCode(65+n), `vote-${ n }`) }))))
+          .then(({ message_id, chat }) =>
+            Polls.update({ user_id: ctx.message.from.id }, {
+              group_id: chat.id,
+              message_id: message_id,
+              user_id: poll.user_id,
+              title: poll.title,
+              answers: poll.answers,
+              voters: poll.voters
+            }, { upsert: true }))
+          .then(() => ctx.replyWithMarkdown('Готово.\n/delpoll \`- для зупинки опитування\`', Extra.markup((m) => m.removeKeyboard())))
+          .then(() => ctx.scene.leave())
       }
     } else {
-      ctx.session.poll.answers.push({ text: msg.text, votes: 0 })
+      ctx.session.newpoll.answers.push({ text: msg.text, votes: 0 })
       ctx.replyWithMarkdown(`Відповідь успішно добавлена.${ length > 5 ? `\nВи можете добавити ще один варіант відповіді \`(7/8)\`` : `` }\n/done \`- для закінчення\``)
-    }
-  },
-  async (ctx) => {
-    const group = await Groups.findOne({ group_title: ctx.message.text })
-    if(group) {
-      const poll = ctx.session.poll
-      ctx.telegram.sendMessage(group.group_id,
-        `\`Голосування 📢\`\n*${ poll.title }*\n\`Варіанти відповідей:\`\n${ poll.answers.map((e, n) => { return `${ `\` \` ` }${ String.fromCharCode(65+n) } \`[0%]\`: ${ e.text } `}).join('\n') }\n\`Всього голосів: 0\``,
-        Extra.markdown().markup(m => m.inlineKeyboard(poll.answers.map((e, n) => { return  m.callbackButton(String.fromCharCode(65+n), `vote-${ n }`) }))))
-        .then(({ message_id, chat }) =>
-          Polls.update({ user_id: ctx.message.from.id }, {
-            group_id: chat.id,
-            message_id: message_id,
-            user_id: poll.user_id,
-            title: poll.title,
-            answers: poll.answers,
-            voters: poll.voters
-          }, { upsert: true }))
-        .then(() => ctx.replyWithMarkdown('Готово.\n/delpoll \`- для зупинки опитування\`', Extra.markup((m) => m.removeKeyboard())))
-        .then(() => ctx.scene.leave())
     }
   }
 )
-poll.leave(ctx => ctx.session.poll = undefined)
+poll.leave(ctx => ctx.session.newpoll = undefined)
 poll.command('cancel', ctx => {
   ctx.reply('Процес створення нового голосування було перервано.', Extra.markup((m) => m.removeKeyboard()))
   ctx.scene.leave()
@@ -99,9 +99,10 @@ poll.command('cancel', ctx => {
 const schedule = new Scene('schedule')
 
 schedule.enter(async ctx => {
-  const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+  const group_id = ctx.session.schedule.group_id
   const schedule = await Schedules.findOne({ group_id: group_id })
   Object.assign(schedule, {
+    group_id: group_id,
     days: [ 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця' ],
     day: 0,
     n: 1
@@ -157,60 +158,67 @@ schedule.leave(ctx => ctx.session.schedule = undefined)
 // HOMEWORK
 const homework = new WizardScene('homework',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+    const group_id = ctx.session.homework.group_id
     const schedule = await Schedules.findOne({ group_id: group_id })
-    ctx.session.emoji = [ '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣' ]
-    ctx.session.days = [ 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця' ]
-    ctx.session.schedule = schedule
-    ctx.session.homework = {
-      text: [],
-      media: []
+    if(!schedule.schedule.find(day => day.find(sub => sub))) {
+      ctx.scene.leave()
+      ctx.replyWithMarkdown(`Вибачте, але ви не заповнили *розклад*.`)
+    } else {
+      Object.assign(schedule, {
+        group_id: group_id,
+        emoji: [ '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣' ],
+        days: [ 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця' ],
+        text: [],
+        media: []
+      })
+      ctx.session.homework = schedule
+      ctx.replyWithMarkdown('Надішліть мені, будь ласка, завдання та/або фото')
+      ctx.wizard.next()
     }
-    ctx.replyWithMarkdown('Надішліть мені, будь ласка, завдання та/або фото')
-    ctx.wizard.next()
   },
   (ctx) => {
     const msg = ctx.message
-    const { schedule, homework } = ctx.session
+    const { schedule, text, media, subjects } = ctx.session.homework
     if(msg.text === '/done') {
       ctx.reply('Вкажіть потрібний предмет:',
-        Markup.keyboard(schedule.subjects, { columns: 3 }).oneTime().resize().extra())
+        Markup.keyboard(subjects, { columns: 3 }).oneTime().resize().extra())
       ctx.wizard.next()
     } else if(msg.text || msg.photo) {
       let added = false
-      if(msg.text) homework.text.push(msg.text)
-      else if(homework.media.length < 10) {
-        homework.media.push(msg.photo.pop().file_id)
+      if(msg.text) text.push(msg.text)
+      else if(media.length < 10) {
+        media.push(msg.photo.pop().file_id)
         added = true
       }
-      const length = homework.media.length
+      const length = media.length
       ctx.replyWithMarkdown(`\`Успіх!\`\n${ msg.text || added ? `Дані додано` : `Медіа не добавлено`}${
         length > 8 ? `. Медіа ${ length }/10` : `` }\n/done\` - для закінчення\``)
     } else ctx.replyWithMarkdown('Я приймаю виключно *текст* або *фото*!')
   },
   (ctx) => {
-    const { schedule, days } = ctx.session
-    if(schedule.subjects.includes(ctx.message.text)) {
+    const homework = ctx.session.homework
+    const { days, subjects } = homework
+    if(homework.subjects.includes(ctx.message.text)) {
       const _day = new Date().getDay()
       const day = _day > 0 || _day < 6 ? _day-1 : 0
       const _days = days.slice(day+1).concat(days.slice(0, day+1))
-      schedule.schedule = schedule.schedule.concat(schedule.schedule.splice(0, day+1))
+      homework.schedule = homework.schedule.concat(homework.schedule.splice(0, day+1))
       const keyboard = []
-      schedule.schedule.forEach((day, dayname) =>
-        day.forEach((sub, n) => { if(sub === ctx.message.text) keyboard.push(`${ ctx.session.emoji[n] } ${ _days[dayname] }`)}))
+      homework.schedule.forEach((day, dayname) =>
+        day.forEach((sub, n) => { if(sub === ctx.message.text) keyboard.push(`${ ctx.session.homework.emoji[n] } ${ _days[dayname] }`)}))
       ctx.reply('Вкажіть котру пару ви бажаєте обрати: ',
         Markup.keyboard(keyboard, { columns: 2 }).resize().extra())
       ctx.wizard.next()
     } else ctx.reply('Хмм.. Такого предмету немає.')
   },
   (ctx) => {
-    const { emoji, days, schedule, homework } = ctx.session
+    const { group_id, emoji, days, schedule, text, media } = ctx.session.homework
     const n = emoji.indexOf(ctx.message.text.slice(0, 3))
     if(n !== -1) {
       const day = days.indexOf(ctx.message.text.slice(4))
       if(day !== -1) {
-        Schedules.update({ group_id: schedule.group_id } , {
-          [`homework.${ day }.${ n }`]: { text: homework.text, media: homework.media }
+        Schedules.update({ group_id: group_id } , {
+          [`homework.${ day }.${ n }`]: { text: text, media: media }
         }).then(() => {
           ctx.replyWithMarkdown(`\`Успіх!\`\nДомашню роботу збережено`, Extra.markup(Markup.removeKeyboard()))
           ctx.scene.leave()
@@ -222,12 +230,7 @@ const homework = new WizardScene('homework',
     } else ctx.reply('Вибачте, але я вас не зрозумів. Спробуйте ще раз.')
   }
 )
-homework.leave(ctx => {
-  ctx.session.emoji = undefined
-  ctx.session.days = undefined
-  ctx.session.schedule = undefined
-  ctx.session.homework = undefined
-})
+homework.leave(ctx => ctx.session.homework = undefined)
 homework.command('cancel', ctx => {
   ctx.reply('Процес добавлення домашньої роботи було перервано.', Extra.markup((m) => m.removeKeyboard()))
   ctx.scene.leave()
@@ -237,7 +240,7 @@ homework.command('cancel', ctx => {
 const announce = new WizardScene('announce',
   async (ctx) => {
     const date = new Date()
-    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+    const group_id = ctx.session.announce.group_id
     ctx.session.announce = {
       group_id: group_id,
       text: null,
@@ -305,7 +308,7 @@ const announce = new WizardScene('announce',
         if(diff > 0) {
           const announcent = { group_id : group_id, text : text, min : min, hour : hour, day : day, month : month, year : year }
           Announcements.create(announcent).then(({ _id }) => {
-            if(diff < 864e5) Views.announcement(_id, group_id, text, diff, ctx.telegram)
+            if(diff < 864e5) Watcher.sendAnnouncement(_id, group_id, text, diff)
             ctx.replyWithMarkdown(`\`Створення оголошення\`\nУспіх! Оголошення створено.\nВоно буде відправлено в бесіду о\` ${
               ('0'+hour).slice(-2) }:${ ('0'+min).slice(-2) } ${ ('0'+day).slice(-2) }/${ ('0'+(month+1)).slice(-2) }/${ year }\``, Extra.markup((m) => m.removeKeyboard()))
           }).catch(err => console.error(err))
@@ -334,7 +337,7 @@ const requisites = new Scene('requisites')
 
 requisites.enter(async ctx => {
   const user = ctx.message.from
-  const { group_id } = await Groups.findOne({ admins: user.id })
+  const group_id = ctx.session.requisites.group_id
   const req = (await Requisites.findOne({  group_id: group_id })) || {
     group_id: group_id,
     message: `Прошу передати гроші особисто мені - ${ user.first_name } ${ user.last_name || '' }`
@@ -368,7 +371,7 @@ requisites.leave(ctx => ctx.session.requisites = undefined)
 const money = new Scene('money')
 
 money.enter(async ctx => {
-  const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+  const group_id = ctx.session.money.group_id
   const req = await Requisites.findOne({ group_id: group_id })
   if(req) {
     ctx.session.money = {
@@ -397,7 +400,7 @@ money.leave(ctx => ctx.session.money = undefined)
 const adduser = new Scene('adduser')
 
 adduser.enter(async ctx => {
-  const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+  const group_id = ctx.session.adduser.group_id
   ctx.session.adduser = { group_id: group_id }
   ctx.replyWithMarkdown('Введіть, будь ласка, інформацію про людину (ПІБ, дата народження, стать) в наступному форматі:\n\`Прізвище Ім\'я та по Батькові ДД ММ РРРР Ч/Ж\`')
 })
@@ -436,14 +439,19 @@ adduser.leave(ctx => ctx.session.adduser = undefined)
 const deluser = new Scene('deluser')
 
 deluser.enter(async ctx => {
-  const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+  const group_id = ctx.session.deluser.group_id
   const users = await Users.find({ group_id: group_id })
   ctx.session.deluser = {
     group_id: group_id,
     users: users
   }
-  ctx.replyWithMarkdown('Виберіть людину, яку ви бажаєте витерти:',
-    Markup.keyboard(users.map(({ first_name, last_name, middle_name }) => { return last_name+' '+first_name+' '+middle_name }), { columns: 1 }).resize().extra())
+  if(users[0])
+    ctx.replyWithMarkdown('Виберіть людину, яку ви бажаєте витерти:',
+      Markup.keyboard(users.map(({ first_name, last_name, middle_name }) => { return last_name+' '+first_name+' '+middle_name }), { columns: 1 }).resize().extra())
+  else {
+    ctx.replyWithMarkdown('У вас відсутня інформація про студентів.\n/adduser - \`щоб добавити її\`')
+    ctx.scene.leave()
+  }
 })
 deluser.command(['cancel', 'exit'], ctx => {
   ctx.reply('Процес видалення користувача було перервано.', Extra.markup((m) => m.removeKeyboard()))
@@ -465,18 +473,23 @@ deluser.leave(ctx => ctx.session.deluser = undefined)
 // ABSENT
 const absent = new WizardScene('absent',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+    const group_id = ctx.session.absent.group_id
     const users = await Users.find({ group_id: group_id })
-    const day = new Date()
-    ctx.session.absent = {
-      group_id: group_id,
-      day: ''+day.getFullYear()+('0'+(day.getMonth()+1)).slice(-2)+('0'+day.getDate()).slice(-2),
-      lesson: null,
-      absent: [],
-      students: users.map(user => `${ user.last_name } ${ user.first_name }`)
+    if(users[0]) {
+      const day = new Date()
+      ctx.session.absent = {
+        group_id: group_id,
+        day: ''+day.getFullYear()+('0'+(day.getMonth()+1)).slice(-2)+('0'+day.getDate()).slice(-2),
+        lesson: null,
+        absent: [],
+        students: users.map(user => `${ user.last_name } ${ user.first_name }`)
+      }
+      ctx.replyWithMarkdown('Вкажіть необхідну пару:', Markup.keyboard([['0', '1', '2', '3', '4']]).resize().extra())
+      ctx.wizard.next()
+    } else {
+      ctx.replyWithMarkdown('У вас відсутня інформація про студентів.\n/adduser - \`щоб добавити її\`')
+      ctx.scene.leave()
     }
-    ctx.replyWithMarkdown('Вкажіть необхідну пару:', Markup.keyboard([['0', '1', '2', '3', '4']]).resize().extra())
-    ctx.wizard.next()
   },
   (ctx) => {
     const absent = ctx.session.absent
@@ -521,12 +534,17 @@ absent.command('cancel', ctx => {
 // VISITING
 const visiting = new WizardScene('visiting',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+    const group_id = ctx.session.visiting.group_id
     const users = await Users.find({ group_id: group_id })
-    ctx.session.visiting = { group_id: group_id }
-    ctx.replyWithMarkdown('Оберіть бажаного студента:',
-      Markup.keyboard(users.map(user => `${ user.last_name } ${ user.first_name }`), { columns: 2 }).resize().extra())
-    ctx.wizard.next()
+    if(users[0]) {
+      ctx.session.visiting = { group_id: group_id }
+      ctx.replyWithMarkdown('Оберіть бажаного студента:',
+        Markup.keyboard(users.map(user => `${ user.last_name } ${ user.first_name }`), { columns: 2 }).resize().extra())
+      ctx.wizard.next()
+    } else {
+      ctx.replyWithMarkdown('У вас відсутня інформація про студентів.\n/adduser - \`щоб добавити її\`')
+      ctx.scene.leave()
+    }
   },
   async (ctx) => {
     const visiting = ctx.session.visiting
@@ -577,12 +595,18 @@ visiting.command('cancel', ctx => {
 // ADDPARENTS
 const addparents = new WizardScene('addparents',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+    const group_id = ctx.session.addparents.group_id
     const users = await Users.find({ group_id: group_id })
-    ctx.session.addparents = { group_id: group_id }
-    ctx.replyWithMarkdown('Оберіть бажаного студента:',
-      Markup.keyboard(users.map(user => `${ user.last_name } ${ user.first_name }`), { columns: 2 }).resize().extra())
-    ctx.wizard.next()
+    if(users[0]) {
+      ctx.session.addparents = { group_id: group_id }
+      if(users[0])
+        ctx.replyWithMarkdown('Оберіть бажаного студента:',
+          Markup.keyboard(users.map(user => `${ user.last_name } ${ user.first_name }`), { columns: 2 }).resize().extra())
+      ctx.wizard.next()
+    } else {
+      ctx.replyWithMarkdown('У вас відсутня інформація про студентів.\n/adduser - \`щоб добавити її\`')
+      ctx.scene.leave()
+    }
   },
   async (ctx) => {
     const addparents = ctx.session.addparents
@@ -641,7 +665,7 @@ addparents.command('cancel', ctx => {
 // BADGRADE
 const badgrade = new WizardScene('badgrade',
   async (ctx) => {
-    const { group_id } = await Groups.findOne({ admins: ctx.message.from.id })
+    const group_id = ctx.session.badgrade.group_id
     const users = await Users.find({ group_id: group_id })
     if(users[0]) {
       ctx.session.badgrade = { group_id: group_id }
@@ -713,16 +737,75 @@ const badgrade = new WizardScene('badgrade',
     } else ctx.replyWithMarkdown('Я приймаю виключно *текст*!')
   }
 )
-badgrade.leave(ctx => {
-  ctx.session.badgrade = undefined
-})
+badgrade.leave(ctx => ctx.session.badgrade = undefined)
 badgrade.command('cancel', ctx => {
   ctx.reply('Процес відправки смс було перервано.', Extra.markup((m) => m.removeKeyboard()))
   ctx.scene.leave()
 })
 
-_Stage.register(reg, poll, schedule, homework, announce, requisites, money, adduser, deluser, absent, visiting, addparents, badgrade)
+// DEL SCHEDULE
+const delschedule = new Scene('delschedule')
 
+delschedule.enter(ctx => {
+  const empty = [ undefined, undefined, undefined, undefined, undefined ]
+  Schedules.update({ group_id: ctx.session.delschedule.group_id }, {
+    schedule: [ empty, empty, empty, empty, empty ],
+    homework: [ empty, empty, empty, empty, empty ]
+  }).then(() => ctx.replyWithMarkdown(`Розклад успішно очищено.`))
+  ctx.scene.leave()
+})
+delschedule.leave(ctx => ctx.session.delschedule = undefined)
+
+// SMS STATUS
+const smsstatus = new Scene('smsstatus')
+
+smsstatus.enter(async ctx => {
+  const group_id = ctx.session.smsstatus.group_id
+  const messages = await GroupSms.find({ group_id: group_id }, null, { limit: 14, sort: '-date' })
+  if(messages[0]) {
+    const state = await Sms.state(messages.reduce((result, item) => { return result.concat(item.message_ids) }, []))
+    const stack = [ 'Статус останніх 15-ти повідомлень:', '\`\`\`   КОМУ   | ДАТА  |   ПРО   |  СТАТУС' ]
+    messages.forEach(m =>
+      m.to.forEach((num, n) =>
+        stack.push(`${ (''+num).slice(-10) }| ${ ('0'+(m.date.getMonth()+1)).slice(-2) }/${ ('0'+m.date.getDate()).slice(-2) } |${
+          (m.text.split(' ')[1]+'         ').slice(0, 9)}|${ state[m.message_ids[n]] }`)
+      ))
+    ctx.replyWithMarkdown(stack.join('\n')+'\`\`\`')
+  } else ctx.replyWithMarkdown('Ви не відправили *жодного* смс')
+  ctx.scene.leave()
+})
+smsstatus.leave(ctx => ctx.session.smsstatus = undefined)
+
+// GROUP SCHEDULE
+const groupschedule = new Scene('groupschedule')
+
+groupschedule.enter(async ctx => {
+  const group_id = ctx.message.chat.id
+  const { schedule, homework } = await Schedules.findOne({ group_id: group_id })
+  const images = [ '🎑', '🏞', '🌅', '🌄', '🌇', '🏙', '🌃', '🌌', '🌉', '🌁' ]
+  const days = [ 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця' ]
+  const _day = new Date().getDay()
+  const hour = new Date().getHours()
+  const day = _day > 0 && _day < 6 ? hour > 14 && _day < 5 ? _day : _day-1 : 0
+  const str = schedule[day].map((sub, n) => { if(sub || n>0) return `${ n }) ${
+    sub ? homework[day][n] ? `${ sub } \`-\` ${ homework[day][n].text.join(' \`-\` ') } ${
+    homework[day][n].media.map(() => { return images[Math.floor(Math.random() * 10)]}).join('')}` : sub : `\`[вікно]\`` }` })
+  if(!str[0]) str.shift()
+  ctx.replyWithMarkdown(`\`Розклад - ${ days[day] }:\`\n${ str.join('\n') }`,
+    Extra.markdown().markup(m => m.inlineKeyboard([
+      m.callbackButton('💬', `schedule-${ day }-m`),
+      m.callbackButton('Пн', `schedule-0`),
+      m.callbackButton('Вт', `schedule-1`),
+      m.callbackButton('Ср', `schedule-2`),
+      m.callbackButton('Чт', `schedule-3`),
+      m.callbackButton('Пт', `schedule-4`)]
+    )))
+  ctx.scene.leave()
+})
+groupschedule.leave(ctx => ctx.session.groupschedule = undefined)
+
+_Stage.register(getgroup, poll, schedule, homework, announce, requisites, money, adduser, deluser)
+_Stage.register(absent, visiting, addparents, badgrade, delschedule, smsstatus, groupschedule)
 
 
 export default _Stage

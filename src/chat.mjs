@@ -7,7 +7,7 @@ export default new class Chat {
     this.lengths = {}
     this.counters = {}
     Object.keys(locale).forEach(pattern => {
-      if(locale[pattern].listeners) this.listeners[pattern] = RegExp(locale[pattern].listeners.join('|'), 'i')
+      this.listeners[pattern] = RegExp(locale[pattern].listeners.join('|'), 'i')
       this.lengths[pattern] = locale[pattern].replies.map(val => { return val.length })
       this.counters[pattern] = locale[pattern].counters
     })
@@ -38,7 +38,7 @@ export default new class Chat {
   }
   getRank(pattern, counter) {
     let rank = 0
-    if(locale[pattern].counters) this.counters[pattern].forEach(num => { if(counter > num) rank++ })
+    this.counters[pattern].forEach(num => { if(counter > num) rank++ })
     return rank
   }
   reply(pattern, params) {

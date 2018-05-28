@@ -5,6 +5,7 @@ const Schema = Mongoose.Schema
 // GROUPS
 const _groups = new Schema({
   group_id      : { type: Number, unique: true },
+  type          : Boolean,
   group_title   : String,
   admins        : [ Number ]
 }, { versionKey : false })

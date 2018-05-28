@@ -141,7 +141,7 @@ Handler.action(/^reg/, async ctx => {
           homework: [ empty, empty, empty, empty, empty ]
         }).catch(err => console.log(err))
       }).catch(err => ctx.reply('Помилка при створенні запису в базі даних. Спробуйте, будь ласка, пізніше.').then(() => ctx.leaveChat(message.chat.id)))
-        .then(() => ctx.editMessageText('Реєстрацію *успішно* завершено.', Extra.markdown())
+        .then(() => ctx.editMessageText('Реєстрацію *успішно* завершено.', Extra.markdown()))
     } else ctx.answerCbQuery()
   } else ctx.editMessageText('Ви уже зареєстрували *дану бесіду*.', Extra.markdown())
 })

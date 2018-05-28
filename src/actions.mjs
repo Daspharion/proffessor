@@ -140,7 +140,7 @@ Handler.action(/^reg/, async ctx => {
           schedule: [ empty, empty, empty, empty, empty ],
           homework: [ empty, empty, empty, empty, empty ]
         }).catch(err => console.log(err))
-      }).catch(err => console.log(err)).then(() => ctx.leaveChat(message.chat.id)))
+      }).catch(err => console.log(err))
       // }).catch(err => ctx.reply('Помилка при створенні запису в базі даних. Спробуйте, будь ласка, пізніше.').then(() => ctx.leaveChat(message.chat.id)))
         .then(() => ctx.editMessageText('Реєстрацію *успішно* завершено.', Extra.markdown()))
     } else ctx.answerCbQuery()

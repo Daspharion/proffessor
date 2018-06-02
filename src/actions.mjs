@@ -1,7 +1,7 @@
 import Composer from 'telegraf/composer'
 import Extra from 'telegraf/extra'
 
-import { Groups, Polls, Schedules, Visiting } from './models'
+import { Groups, Polls, Schedules, Visiting, Links } from './models'
 
 const Handler = new Composer()
 
@@ -126,24 +126,46 @@ Handler.action(/^reg/, async ctx => {
   const { message, from } = ctx.update.callback_query
   const group = await Groups.findOne({ group_id: message.chat.id })
   if(!group) {
-    const admins = (await ctx.getChatAdministrators()).map(({ user }) => user.id)
+    const raw_admins = await ctx.getChatAdministrators()
+    const admins = raw_admins.map(({ user }) => user.id)
     if(admins.includes(from.id)) {
-      const empty = [ undefined, undefined, undefined, undefined, undefined ]
+      const empty = new Array(5).fill().map(() => new Array(5).fill(null))
       Groups.create({
         group_id: message.chat.id,
         type: type,
         group_title: message.chat.title,
+        creator: raw_admins.map(({ user, status }) => status === 'creator' ? user.id : null).find(adm => adm),
         admins: admins
       }).then(() => {
         if(!type) Schedules.create({
           group_id: message.chat.id,
-          schedule: [ empty, empty, empty, empty, empty ],
-          homework: [ empty, empty, empty, empty, empty ]
+          schedule: empty,
+          homework: empty
         }).catch(err => console.log(err))
         ctx.editMessageText('Реєстрацію *успішно* завершено.', Extra.markdown())
       }).catch(err => ctx.reply('Помилка при створенні запису в базі даних. Спробуйте, будь ласка, пізніше.').then(() => ctx.leaveChat(message.chat.id)))
     } else ctx.answerCbQuery()
   } else ctx.editMessageText('Ви уже зареєстрували *дану бесіду*.', Extra.markdown())
+})
+
+// LINK
+Handler.action(/^link/, async ctx => {
+  const [ command, action, id ] = ctx.match.input.split('-')
+  const links = await Links.findOne({ 'groups._id': id })
+  if(links) {
+    const link = links.groups.find(g => g._id.toString() === id)
+    if(link && link.pending) {
+      if(action === 'yes') Links.update({ 'groups._id': id }, {
+        $set: { 'groups.$.pending': false }
+      }).then(() => ctx.replyWithMarkdown('Зв\'язок із групою *успішно* створено'))
+        .catch((err) => ctx.replyWithMarkdown('Відбулась невідома *помилка*...'))
+      else Links.update({ 'groups._id': id }, {
+        $pull: { groups: { _id: id } }
+      }).then(() => ctx.replyWithMarkdown('Заявку *успішно* відхилено'))
+        .catch((err) => ctx.replyWithMarkdown('Відбулась невідома *помилка*...'))
+    } else ctx.editMessageText('Заявка більше *не дійсна*', Extra.markdown())
+  }
+  ctx.answerCbQuery()
 })
 
 

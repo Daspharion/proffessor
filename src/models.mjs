@@ -7,6 +7,7 @@ const _groups = new Schema({
   group_id      : { type: Number, unique: true },
   type          : Boolean,
   group_title   : String,
+  creator       : Number,
   admins        : [ Number ]
 }, { versionKey : false })
 
@@ -54,7 +55,8 @@ const _users = new Schema({
   dob_day       : Number,
   dob_month     : Number,
   dob_year      : Number,
-  sex           : Boolean
+  sex           : Boolean,
+  user_id       : Number
 }, { versionKey: false })
 
 // VISITING
@@ -82,6 +84,39 @@ const _parents = new Schema({
   number        : Number
 }, { versionKey: false })
 
+// COURCES
+const _cources = new Schema({
+  group_id      : Number,
+  name          : String,
+  cource        : Number,
+  student_group : Schema.Types.ObjectId
+}, { versionKey: false })
+
+// DOCS
+const _docs = new Schema({
+  group_id      : Number,
+  user_id       : Schema.Types.ObjectId,
+  name          : String,
+  files         : [ String ],
+  date          : { type: Date, default: Date.now }
+}, { versionKey: false })
+
+// TEACHER SCHEDULE
+const _teacherSchedule = new Schema({
+  group_id      : Number,
+  user_id       : Schema.Types.ObjectId,
+  group         : Schema.Types.ObjectId,
+  day           : Number,
+  lesson        : Number,
+  periodic      : Boolean
+}, { versionKey: false })
+
+const _links = new Schema({
+  group_id      : Number,
+  secret        : { type: String, unique: true },
+  groups        : [ { id: Number, name: String, pending: Boolean  } ]
+}, { versionKey: false })
+
 const Groups = Mongoose.model('groups', _groups)
 const Polls = Mongoose.model('polls', _polls)
 const Schedules = Mongoose.model('schedules', _schedules)
@@ -91,5 +126,9 @@ const Users = Mongoose.model('users', _users)
 const Visiting = Mongoose.model('visiting', _visiting)
 const GroupSms = Mongoose.model('sms', _sms)
 const Parents = Mongoose.model('parents', _parents)
+const Cources = Mongoose.model('cources', _cources)
+const Docs = Mongoose.model('docs', _docs)
+const TeacherSchedule = Mongoose.model('teacherSchedule', _teacherSchedule)
+const Links = Mongoose.model('links', _links)
 
-export { Groups, Polls, Schedules, Announcements, Requisites, Users, Visiting, GroupSms, Parents }
+export { Groups, Polls, Schedules, Announcements, Requisites, Users, Visiting, GroupSms, Parents, Cources, Docs, TeacherSchedule, Links }

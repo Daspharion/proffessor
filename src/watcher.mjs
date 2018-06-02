@@ -12,11 +12,6 @@ export default new class Watcher {
     // STARTUP
     console.log(`> Starting up WATCH @ ${ now }`)
 
-    // REG_ID CLEANUP
-    Groups.update({}, { reg_id: undefined })
-      .then(({ nModified }) => console.log(`# WATCH: Cleaned reg_id's for ${ nModified } groups`))
-      .catch(err => console.error(`! Error: while cleaning reg_id's: ${ err.message }`))
-
     // ANNOUNCEMENTS
     this.announcements()
     setInterval(() => this.announcements(), 864e5)
@@ -30,7 +25,7 @@ export default new class Watcher {
     // AUTO SCHEDULE
     setTimeout(() => {
       this.schedule()
-      setInterval(() => { if(now.getDay() < 5) this.schedule() }, 864e5)
+      setInterval(() => { if(new Date().getDay() < 5) this.schedule() }, 864e5)
     }, now.getHours() < 20 ? new Date().setHours(20,0,0,0) - now : new Date().setHours(24,0,0,0) - now + 72e6)
 
     // GOOD MORNING
@@ -49,7 +44,7 @@ export default new class Watcher {
   schedule() {
     Groups.find({ group_id: { $ne: null }}).then(groups => {
       console.log(`# WATCH: Sending schedules for ${ groups.length } groups`)
-      groups.forEach((group, n) => setTimeout(() => Views.groupSchedule(group.group_id), Math.trunc(n/10)*5e3))
+      groups.forEach((group, n) => setTimeout(() => this.groupSchedule(group.group_id), Math.trunc(n/10)*5e3))
     }).catch(err => console.error(`! Error: while sending out schedules: ${ err.message }`))
   }
   announcements() {
@@ -100,8 +95,6 @@ export default new class Watcher {
           if(l > 1) birthdays[l-2] += ` та ${ birthdays.pop() }`
           message.push(`Також ${ birthdays.join(', ') } ${ l > 1 ? 'святкують свої дні народження' : 'святкує свій день народження' } 🎂`)
         }
-
-
         setTimeout(() => this.Bot.telegram.sendMessage(group.group_id, message.join('\n\` \`'), Extra.markdown()), Math.trunc(n/10)*5e3)
       })
     }).catch(err => console.error(err))
@@ -117,6 +110,30 @@ export default new class Watcher {
       return true
     }
     return false
+  }
+  async groupSchedule(group_id) {
+    const _schedule = await Schedules.findOne({ group_id: group_id })
+    if(_schedule) {
+      const { schedule, homework } = _schedule
+      const images = [ '🎑', '🏞', '🌅', '🌄', '🌇', '🏙', '🌃', '🌌', '🌉', '🌁' ]
+      const days = [ 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця' ]
+      const _day = new Date().getDay()
+      const hour = new Date().getHours()
+      const day = _day > 0 && _day < 6 ? hour > 14 && _day < 5 ? _day : _day-1 : 0
+      const str = schedule[day].map((sub, n) => { if(sub || n>0) return `${ n }) ${
+        sub ? homework[day][n] ? `${ sub } \`-\` ${ homework[day][n].text.join(' \`-\` ') } ${
+        homework[day][n].media.map(() => { return images[Math.floor(Math.random() * 10)]}).join('')}` : sub : `\`[вікно]\`` }` })
+      if(!str[0]) str.shift()
+      this.Bot.telegram.sendMessage(group_id, `\`Розклад - ${ days[day] }:\`\n${ str.join('\n') }`,
+        Extra.markdown().markup(m => m.inlineKeyboard([
+          m.callbackButton('💬', `schedule-${ day }-m`),
+          m.callbackButton('Пн', `schedule-0`),
+          m.callbackButton('Вт', `schedule-1`),
+          m.callbackButton('Ср', `schedule-2`),
+          m.callbackButton('Чт', `schedule-3`),
+          m.callbackButton('Пт', `schedule-4`)]
+        )))
+    }
   }
 }
 

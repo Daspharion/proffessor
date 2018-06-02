@@ -6,7 +6,7 @@ import Extra from 'telegraf/extra'
 import Watcher from './watcher'
 import Sms from './sms'
 
-import { Groups, Polls, Schedules, Announcements, Requisites, Users, Visiting, Parents, GroupSms } from './models'
+import { Groups, Polls, Schedules, Announcements, Requisites, Users, Visiting, Parents, GroupSms, Cources, Docs, TeacherSchedule, Links } from './models'
 
 const _Stage = new Stage()
 
@@ -35,6 +35,8 @@ getgroup.on('text', ctx => {
   const group = getgroup.groups.find(g => g.group_title === ctx.message.text)
   if(group) {
     ctx.replyWithMarkdown(`Обрана бесіда - \`${ ctx.message.text }\``, Extra.markup((m) => m.removeKeyboard()))
+    const next = getgroup.next.split('|')
+    if(next[1]) getgroup.next = group.type ? next[0] : next[1]
     ctx.scene.enter(getgroup.next)
     ctx.session[getgroup.next] = { group_id: group.group_id }
   } else ctx.reply('Вибачте, але я не знайшов дану бесіду')
@@ -397,41 +399,69 @@ money.on('text', ctx => {
 money.leave(ctx => ctx.session.money = undefined)
 
 // ADDUSER
-const adduser = new Scene('adduser')
+const adduser = new WizardScene('adduser',
+  (ctx) => {
+    ctx.replyWithMarkdown('Введіть, будь ласка, інформацію про людину (ПІБ, дата народження, стать) в наступному форматі:\n\`Прізвище Ім\'я та по Батькові ДД ММ РРРР Ч/Ж\`')
+    ctx.wizard.next()
+  },
+  (ctx) => {
+    const adduser = ctx.session.adduser
+    const text = ctx.message.text.split(' ')
+    if(text.length > 6) {
+      const dob = [ parseInt(text[3]), parseInt(text[4]), parseInt(text[5]) ]
+      if(dob[0] > 0 && dob[0] < 32 && dob[1] > 0 && dob[1] < 13 && dob[2] > 0 && dob[2] <= new Date().getFullYear()) {
+        if(text[6] === 'Ж' || text[6] === 'Ч') {
+          const sex = text[6] === 'Ч' ? true : false
+          Object.assign(adduser, {
+            first_name: text[1],
+            last_name: text[0],
+            middle_name: text[2],
+            dob_day: dob[0],
+            dob_month: dob[1],
+            dob_year: dob[2],
+            sex: sex
+          })
+          ctx.replyWithMarkdown('Тепер надішліть мені, будь ласка, посилання на *користувача*:\n/skip \`- щоб пропустити цей крок\`')
+          ctx.wizard.next()
+        } else ctx.replyWithMarkdown('Вибачте, але я не зумів розпізнати стать (Ч/Ж)\n/cancel - для відміни')
+      } else ctx.replyWithMarkdown('Вибачте, але я не зумів розпізнати дату народження\n/cancel - для відміни')
+    } else ctx.replyWithMarkdown('Вибачте, але ви вказали неповну інформацію, необхідний формат:\n\`Прізвище Ім\'я та по Батькові ДД ММ РРРР Ч/Ж\`')
+  },
+  async (ctx) => {
+    const adduser = ctx.session.adduser
+    if(ctx && ctx.message.contact) {
+      adduser.user_id = ctx.message.contact.user_id
+      if(adduser.user_id) {
+        const user = await Users.findOne({ group_id: adduser.group_id, user_id: adduser.user_id })
+        if(!user) ctx.wizard.steps[3](ctx)
+        else ctx.replyWithMarkdown('Даний користувач вже є *зареєстрованим* у вашій бесіді!\n/skip \`- щоб пропустити цей крок\`')
+      } else ctx.replyWithMarkdown('Я не побачив \`ID\` користувача. Таке зазвичай стається, коли телефонний номер контакту не починається із +380.\n/skip \`- щоб пропустити цей крок\`')
 
-adduser.enter(async ctx => {
-  const group_id = ctx.session.adduser.group_id
-  ctx.session.adduser = { group_id: group_id }
-  ctx.replyWithMarkdown('Введіть, будь ласка, інформацію про людину (ПІБ, дата народження, стать) в наступному форматі:\n\`Прізвище Ім\'я та по Батькові ДД ММ РРРР Ч/Ж\`')
+    } else ctx.replyWithMarkdown('В повідомленні відсутнє посилання на контакт.\n/skip \`- щоб пропустити цей крок\`')
+  },
+  (ctx) => {
+    const adduser = ctx.session.adduser
+    Users.create({
+      group_id: adduser.group_id,
+      first_name: adduser.first_name,
+      last_name: adduser.last_name,
+      middle_name: adduser.middle_name,
+      dob_day: adduser.dob_day,
+      dob_month: adduser.dob_month,
+      dob_year: adduser.dob_year,
+      sex: adduser.sex,
+      user_id: adduser.user_id
+    }).then(() => ctx.replyWithMarkdown('Користувача *успішно* добавлено'))
+      .catch(() => ctx.replyWithMarkdown('Відбулась помилка при добавленні користувача. Спробуйте, будь ласка, пізніше'))
+      .then(() => ctx.scene.leave())
+  }
+)
+adduser.command('skip', ctx => {
+  if(ctx.wizard.cursor === 2) ctx.wizard.steps[3](ctx)
 })
 adduser.command(['cancel', 'exit'], ctx => {
   ctx.reply('Процес добавлення користувача було перервано.')
   ctx.scene.leave()
-})
-adduser.on('text', ctx => {
-  const { group_id } = ctx.session.adduser
-  const text = ctx.message.text.split(' ')
-  if(text.length > 6) {
-    const dob = [ parseInt(text[3]), parseInt(text[4]), parseInt(text[5]) ]
-    if(dob[0] > 0 && dob[0] < 32 && dob[1] > 0 && dob[1] < 13 && dob[2] > 0 && dob[2] <= new Date().getFullYear()) {
-      if(text[6] === 'Ж' || text[6] === 'Ч') {
-        const sex = text[6] === 'Ч' ? true : false
-        Users.create({
-          group_id: group_id,
-          first_name: text[1],
-          last_name: text[0],
-          middle_name: text[2],
-          dob_day: dob[0],
-          dob_month: dob[1],
-          dob_year: dob[2],
-          sex: sex
-        }).then(() => {
-          ctx.reply('Людину успішно добавлено!')
-          ctx.scene.leave()
-        })
-      } else ctx.replyWithMarkdown('Вибачте, але я не зумів розпізнати стать (Ч/Ж)\n/cancel - для відміни')
-    } else ctx.replyWithMarkdown('Вибачте, але я не зумів розпізнати дату народження\n/cancel - для відміни')
-  } else ctx.replyWithMarkdown('Вибачте, але ви вказали неповну інформацію, необхідний формат:\n\`Прізвище Ім\'я та по Батькові ДД ММ РРРР Ч/Ж\`')
 })
 adduser.leave(ctx => ctx.session.adduser = undefined)
 
@@ -446,7 +476,7 @@ deluser.enter(async ctx => {
     users: users
   }
   if(users[0])
-    ctx.replyWithMarkdown('Виберіть людину, яку ви бажаєте витерти:',
+    ctx.replyWithMarkdown('Виберіть людину, яку ви бажаєте витерти:\n/cancel - \`для відміни\`',
       Markup.keyboard(users.map(({ first_name, last_name, middle_name }) => { return last_name+' '+first_name+' '+middle_name }), { columns: 1 }).resize().extra())
   else {
     ctx.replyWithMarkdown('У вас відсутня інформація про студентів.\n/adduser - \`щоб добавити її\`')
@@ -662,7 +692,7 @@ addparents.command('cancel', ctx => {
   ctx.scene.leave()
 })
 
-// BADGRADE
+// BAD GRADE
 const badgrade = new WizardScene('badgrade',
   async (ctx) => {
     const group_id = ctx.session.badgrade.group_id
@@ -804,8 +834,631 @@ groupschedule.enter(async ctx => {
 })
 groupschedule.leave(ctx => ctx.session.groupschedule = undefined)
 
-_Stage.register(getgroup, poll, schedule, homework, announce, requisites, money, adduser, deluser)
-_Stage.register(absent, visiting, addparents, badgrade, delschedule, smsstatus, groupschedule)
+// ADD GROUP
+const addgroup = new WizardScene('addgroup',
+  (ctx) => {
+    ctx.replyWithMarkdown('Напишіть назву спеціальності:')
+    ctx.wizard.next()
+  },
+  async (ctx) => {
+    if(ctx.message.text) {
+      const addgroup = ctx.session.addgroup
+      addgroup.name = ctx.message.text
+      const cources = (await Cources.find({ group_id: addgroup.group_id, name: addgroup.name })).map(c => c.cource)
+      addgroup.keyboard = [ '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣' ].filter((k, n) => !cources.includes(n+1))
+      if(!addgroup.keyboard[0]) {
+        ctx.reply('До даної спеціальності вже створені усі курси.', Extra.markup((m) => m.removeKeyboard()))
+        ctx.scene.leave()
+      } else {
+        ctx.replyWithMarkdown('Вкажіть необхідні курси:', Markup.keyboard([addgroup.keyboard]).resize().extra())
+        ctx.wizard.next()
+      }
+    } else ctx.replyWithMarkdown('Я приймаю *лише* текст!')
+  },
+  (ctx) => {
+    const addgroup = ctx.session.addgroup
+    const index = addgroup.keyboard.indexOf(ctx.message.text)
+    if(index !== -1) {
+      Cources.create({
+        group_id: addgroup.group_id,
+        name: addgroup.name,
+        cource: [ '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣' ].indexOf(addgroup.keyboard.splice(index, 1)[0])+1
+      }).then(() => {
+        if(!addgroup.keyboard[0]) {
+          ctx.replyWithMarkdown('Групи *успішно* додані.', Extra.markup((m) => m.removeKeyboard()))
+          ctx.scene.leave()
+        } else ctx.replyWithMarkdown('Група *успішно* додана\n/done - для закінчення', Markup.keyboard([addgroup.keyboard]).resize().extra())
+      }).catch(err => {
+        ctx.reply('Помилка при створенні запису в базі даних, спробуйте, будь ласка, пізніше')
+        ctx.scene.leave()
+      })
+    } else ctx.replyWithMarkdown('Вибачте, але я Вас не зрозумів.')
+  }
+)
+addgroup.command('done', ctx => {
+  ctx.reply('Операцію успішно завершено', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+addgroup.command('cancel', ctx => {
+  ctx.reply('Процес добавлення групи було перервано.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+addgroup.leave(ctx => ctx.session.addgroup = undefined)
+
+// DEL GROUP
+const delgroup = new WizardScene('delgroup',
+  async (ctx) => {
+    const delgroup = ctx.session.delgroup
+    const cources = await Cources.find({ group_id: delgroup.group_id })
+    delgroup.cources = cources
+    if(cources[0]) {
+      ctx.replyWithMarkdown('Вкажіть назву спеціальності:\n/cancel - \`для відміни\`', Markup.keyboard([[...new Set(cources.map(c => c.name))]], { columns: 4 }).resize().extra())
+      ctx.wizard.next()
+    } else {
+      ctx.replyWithMarkdown('Ви *не заповнили* інформацію про навчальні групи\n/addgroup - \`для заповнення\`')
+      ctx.scene.leave()
+    }
+  },
+  (ctx) => {
+    const delgroup = ctx.session.delgroup
+    const group = delgroup.cources.filter(c => c.name === ctx.message.text)
+    if(group[0]) {
+      delgroup.name = ctx.message.text
+      const cources = group.map(g => g.cource)
+      delgroup.keyboard = [ '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣' ].filter((k, n) => cources.includes(n+1))
+      ctx.replyWithMarkdown('Вкажіть курс:', Markup.keyboard([delgroup.keyboard.concat('⬅️')]).resize().extra())
+      ctx.wizard.next()
+    } else ctx.replyWithMarkdown('Вибачте, але у Вас не створено даної групи')
+  },
+  (ctx) => {
+    const delgroup = ctx.session.delgroup
+    const index = delgroup.keyboard.indexOf(ctx.message.text)
+    if(index !== -1) {
+      Cources.remove({
+        group_id: delgroup.group_id,
+        name: delgroup.name,
+        cource: [ '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣' ].indexOf(delgroup.keyboard.splice(index, 1)[0])+1
+      }).then(async () => {
+        if(delgroup.keyboard[0]) {
+          ctx.replyWithMarkdown(`Групу ${ ctx.message.text }${ delgroup.name } *успішно* видалено`,
+            Markup.keyboard([delgroup.keyboard.concat('⬅️')]).resize().extra())
+        } else {
+          const cources = (await Cources.find({ group_id: delgroup.group_id })).filter(c => c.name !== delgroup.name)
+          if(cources[0]) {
+            ctx.replyWithMarkdown('Вкажіть назву спеціальності:\n/cancel - \`для відміни\`', Markup.keyboard([[...new Set(cources.map(c => c.name))]], { columns: 4 }).resize().extra())
+            ctx.wizard.selectStep(1)
+          } else {
+            ctx.replyWithMarkdown('Вся інформація про спеціальності була *витерта*', Extra.markup((m) => m.removeKeyboard()))
+            ctx.scene.leave()
+          }
+        }
+      }).catch(err => {
+        ctx.replyWithMarkdown('Відбулась помилка при видаленні запису із бази даних', Extra.markup((m) => m.removeKeyboard()))
+        ctx.scene.leave()
+      })
+    } else ctx.replyWithMarkdown('Вибачте, але я Вас не зрозумів')
+  }
+)
+delgroup.hears('⬅️', ctx => {
+  ctx.wizard.selectStep(0)
+  ctx.wizard.steps[0](ctx)
+})
+delgroup.command('cancel', ctx => {
+  ctx.reply('Процес видалення групи було перервано.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+delgroup.leave(ctx => ctx.session.delgroup = undefined)
+
+// TDOCS
+const tdocs = new WizardScene('tdocs',
+  async (ctx) => {
+    const tdocs = ctx.session.tdocs
+    const user = await Users.findOne({ group_id: tdocs.group_id, user_id: ctx.message.from.id })
+    if(user) {
+      tdocs.user = user._id
+      const data = await Docs.find({ group_id: tdocs.group_id, user_id: tdocs.user })
+      if(data[0]) {
+        const stack = [ 'Список вашого методичного забезпечення:' ]
+        data.forEach((d, n) => stack.push(`${ n+1 })\` ${ d.name }\``))
+        stack.push('Виберіть, будь ласка, яку процедуру ви бажаєте провести:')
+        tdocs.data = data
+        ctx.replyWithMarkdown(stack.join('\n'),
+          Extra.markup((m) => m.keyboard([[ 'Добавити', 'Видалити', 'Вихід' ]]).resize()))
+      }
+      else ctx.replyWithMarkdown('Очевидно у вас немає жодних даних, ви можете легко їх *добавити*:',
+        Extra.markup((m) => m.keyboard([[ 'Добавити', 'Вихід' ]]).resize()))
+    } else {
+      ctx.replyWithMarkdown('Вибачте, але ваш *обліковий запис* не знаходиться у нашій базі даних. Зверніться до адміністраторів *вашої* бесіди.')
+      ctx.scene.leave()
+    }
+  },
+  (ctx) => {
+    const tdocs = ctx.session.tdocs
+    if(!tdocs.files) {
+      tdocs.files = [ ]
+      ctx.replyWithMarkdown('Напишіть мені, будь ласка, назву документів та відправте їх.', Extra.markup((m) => m.removeKeyboard()))
+    } else {
+      if(ctx.message.text) {
+        tdocs.name = ctx.message.text
+        ctx.replyWithMarkdown(`Встановлена назва: \`${ tdocs.name }\``,
+          Extra.markup((m) => m.keyboard(tdocs.files[0] ? [ 'Готово' ] : [ ]).resize()))
+      } else if(ctx.message.document) {
+        tdocs.files.push(ctx.message.document.file_id)
+        ctx.replyWithMarkdown(`Добавлено файл: \`${ ctx.message.document.file_name }\``,
+          Extra.markup((m) => m.keyboard(tdocs.name ? [ 'Готово' ] : [ ]).resize()))
+      } else ctx.replyWithMarkdown('Файли повинні бути відправлені як *документи*!')
+    }
+  },
+  (ctx) => {
+    const tdocs = ctx.session.tdocs
+    if(tdocs.data[0]) {
+      ctx.replyWithMarkdown('Виберіть, будь ласка, котрий документ ви бажаєте витерти:',
+        Extra.markup((m) => m.keyboard(tdocs.data.map(d => d.name)).resize()))
+      ctx.wizard.next()
+    } else {
+      ctx.wizard.selectStep(0)
+      ctx.wizard.steps[0](ctx)
+    }
+  },
+  async (ctx) => {
+    const tdocs = ctx.session.tdocs
+    const doc = await Docs.findOne({ group_id: tdocs.group_id, user_id: tdocs.user, name: ctx.message.text })
+    if(doc) {
+      Docs.remove({ group_id: tdocs.group_id, user_id: tdocs.user, name: ctx.message.text })
+        .then(() => ctx.replyWithMarkdown('Документ *успішно* видалено.', Extra.markup((m) => m.removeKeyboard())))
+        .catch(() => {
+          ctx.replyWithMarkdown('Відбулась *помилка* при видаленні документу.', Extra.markup((m) => m.removeKeyboard()))
+          ctx.scene.leave()
+        })
+        .then(() => {
+          ctx.wizard.selectStep(0)
+          ctx.wizard.steps[0](ctx)
+        })
+    } else ctx.replyWithMarkdown('Вибачте, але я *не знайшов* даного документу в базі даних')
+  }
+)
+tdocs.hears('Добавити', ctx => {
+  ctx.wizard.selectStep(1)
+  ctx.wizard.steps[1](ctx)
+})
+tdocs.hears('Видалити', ctx => {
+  ctx.wizard.selectStep(2)
+  ctx.wizard.steps[2](ctx)
+})
+tdocs.hears('Вихід', ctx => {
+  ctx.reply('Ви успішно вийшли із даної процедури.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+tdocs.hears('Готово', ctx => {
+  const tdocs = ctx.session.tdocs
+  if(ctx.wizard.cursor === 1) {
+    if(tdocs.name && tdocs.files[0]) {
+      Docs.create({
+        group_id: tdocs.group_id,
+        user_id: tdocs.user,
+        name: tdocs.name,
+        files: tdocs.files
+      }).then(() => ctx.replyWithMarkdown('Дані *успішно* добавлено!', Extra.markup((m) => m.removeKeyboard())))
+        .catch(() => ctx.replyWithMarkdown('Відбулась *помилка* при створенні запису в базі даних.', Extra.markup((m) => m.removeKeyboard())))
+        .then(() => ctx.scene.leave())
+    } else if(!tdocs.name) ctx.replyWithMarkdown('Напишіть, будь ласка, *назву* документа')
+      else if(!tdocs.files[0]) ctx.replyWithMarkdown('Ви не добавили *жодного* документа')
+  }
+})
+tdocs.command('cancel', ctx => {
+  ctx.reply('Процес було перервано.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+tdocs.leave(ctx => ctx.session.tdocs = undefined)
+
+// TSCHEDULE
+const tschedule = new WizardScene('tschedule',
+  async (ctx) => {
+    const sess = ctx.session.tschedule
+    const users = await Users.find({ group_id: sess.group_id })
+    const cources = await Cources.find({ group_id: sess.group_id })
+    if(users[0]) {
+      if(cources[0]) {
+        sess.users = users
+        sess.cources = cources
+        ctx.replyWithMarkdown('Оберіть необхідного викладача:',
+          Extra.markup((m) => m.keyboard(users.map(u => `${ u.last_name } ${ u.first_name } ${ u.middle_name }`)).resize()))
+        ctx.wizard.next()
+      } else {
+        ctx.replyWithMarkdown('Ви не заповнили інформацію про студентські групи.\n/addgroup - \`для заповнення\`')
+        ctx.scene.leave()
+      }
+    } else {
+      ctx.replyWithMarkdown('Ви не заповнили інформацію про викладачів.\n/adduser - \`для заповнення\`')
+      ctx.scene.leave()
+    }
+  },
+  async (ctx) => {
+    const sess = ctx.session.tschedule
+    if(ctx.message.text) {
+      if(!sess.user) {
+        sess.n = 1
+        sess.day = 0
+        const input = ctx.message.text.split(' ')
+        sess.user = sess.users.find(u => u.last_name === input[0] && u.first_name === input[1] && u.middle_name === input[2])
+      }
+      if(sess.user) {
+        const schedule = (await TeacherSchedule.find({ group_id: sess.group_id, user_id: sess.user._id })).map(s => {
+          const group = sess.cources.find(c => s.group.equals(c._id)) || {}
+          return {
+            group: s.group,
+            group_name: group.name || '\`[видалено]\`',
+            group_cource: group.cource || '\`?\`',
+            day: s.day,
+            lesson: s.lesson,
+            periodic: s.periodic
+          }
+        })
+        sess.days = [ 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця' ]
+        const stack = new Array(5).fill().map(() => new Array(5).fill(null))
+        schedule.forEach(s => {
+          const group = `${ s.group_cource } ${ s.group_name }`
+          stack[s.day][s.lesson] = !(s.periodic === undefined) ? s.periodic ? stack[s.day][s.lesson] ? [group].concat([stack[s.day][s.lesson][1]])
+          : [group, null] : stack[s.day][s.lesson] ? [stack[s.day][s.lesson][0]].concat([group]) : [null, group] : group
+        })
+        stack.forEach((s, day) => s.forEach((st, n) => {
+          if(st && typeof st === 'object') {
+            stack[day][n] = stack[day][n].map(e => e || '\`[вікно]\`')
+            stack[day][n] = stack[day][n].join(' / ')
+          }
+        }))
+        sess.stack = stack
+        await ctx.replyWithMarkdown('Користуйтесь *стрілками* для переміщення та *клавіатурою* для вибору груп',
+          Extra.markup(m => m.keyboard([...new Set(sess.cources.map(c => c.name)), '[ ВІКНО ]', '[ / ]'], { columns: 4 }).resize()))
+        ctx.replyWithMarkdown(`\`Розклад\`\n*${ sess.days[sess.day] }:*\n${ stack[sess.day].map((s, n) =>
+          `${ n === sess.n ? `\`>\`` : `\` \`` } ${ n }) ${ s ? s : `\`[вікно]\`` }`).join('\n')}\n/exit - \`вихід\``,
+          Extra.markdown().markup(m => m.inlineKeyboard([
+            m.callbackButton('⬅️', `tschedule-left`),
+            m.callbackButton('⬆️', `tschedule-up`),
+            m.callbackButton('⬇️', `tschedule-down`),
+            m.callbackButton('➡️', `tschedule-right`)])))
+        ctx.wizard.next()
+      } else ctx.replyWithMarkdown('Вибачте, але я *не знайшов* даного викладача.')
+    }
+  },
+  (ctx) => {
+    if(ctx.message && ctx.message.text) {
+      const sess = ctx.session.tschedule
+      if(ctx.message.text === '[ / ]' && !sess.p) {
+        sess.p = true
+        ctx.replyWithMarkdown('Ви вибрали метод введення пари \'Раз на два тижні\'',
+          Extra.markup(m => m.keyboard([...new Set(sess.cources.map(c => c.name)), '[ ВІКНО ]'], { columns: 4 }).resize()))
+      } else if(ctx.message.text === '[ ВІКНО ]') {
+        sess.window = true
+        ctx.wizard.selectStep(3)
+        ctx.wizard.steps[3](ctx)
+      } else {
+        const cources = sess.cources.filter(c => c.name === ctx.message.text)
+        if(cources[0]) {
+          sess.crcs = cources
+          ctx.replyWithMarkdown('А тепер вкажіть, будь ласка, *курс*',
+            Extra.markup(m => m.keyboard([cources.map(c => c.cource.toString())]).resize()))
+          ctx.wizard.next()
+        } else ctx.replyWithMarkdown('Вибачте, але *не знайшов* дану групу')
+      }
+    }
+  },
+  async (ctx) => {
+    if(ctx.message && ctx.message.text) {
+      const sess = ctx.session.tschedule
+      if(!sess.window) sess.crc = sess.crcs.find(c => c.cource === parseInt(ctx.message.text))
+      if(sess.crc || sess.window) {
+        if(sess.p) {
+          ctx.replyWithMarkdown('Вкажіть період пари:',
+            Extra.markup(m => m.keyboard([['Чисельник', 'Знаменник']]).resize()))
+          ctx.wizard.next()
+        } else ctx.wizard.steps[4](ctx)
+      } else ctx.replyWithMarkdown('Вибачте, але даного курсу *не існує*')
+    }
+  },
+  async (ctx) => {
+    if(ctx.message && ctx.message.text) {
+      const sess = ctx.session.tschedule
+      const lesson = {
+        group_id: sess.group_id,
+        user_id: sess.user._id,
+        group: sess.crc ? sess.crc._id : {},
+        day: sess.day,
+        lesson: sess.n
+      }
+      const q = await TeacherSchedule.find({ group_id: sess.group_id, user_id: sess.user._id, day: sess.day, lesson: sess.n })
+      if(sess.p) {
+        const period = ['Чисельник', 'Знаменник'].indexOf(ctx.message.text)
+        if(period !== -1) {
+          lesson.periodic = !Boolean(period)
+          if(q[0]) {
+            const less = q.find(l => l.periodic === lesson.periodic)
+            if(less) await TeacherSchedule.remove({ _id: less._id })
+            else if(q[0].periodic === undefined) await TeacherSchedule.remove({ _id: q[0]._id })
+          }
+          sess.p = false
+        } else ctx.replyWithMarkdown('Вибачте, але я Вас не зрозумів')
+      } else await TeacherSchedule.remove({ _id: { $in: q.map(l => l._id) }})
+      if(!sess.window)
+        TeacherSchedule.create(lesson).then(() => {
+          if(sess.n > 3) {
+            sess.n = 1
+            sess.day = sess.day > 3 ? 0 : sess.day+1
+          } else sess.n++
+          ctx.wizard.selectStep(1)
+          ctx.wizard.steps[1](ctx)
+        }).catch(() => {
+          ctx.replyWithMarkdown('Відбулась невідома *помилка* при записі інформації в базу даних')
+          ctx.scene.leave()
+        })
+      else {
+        sess.window = false
+        if(sess.n > 3) {
+          sess.n = 1
+          sess.day = sess.day > 3 ? 0 : sess.day+1
+        } else sess.n++
+        ctx.wizard.selectStep(1)
+        ctx.wizard.steps[1](ctx)
+      }
+    }
+  }
+)
+tschedule.action(/^tschedule/, async ctx => {
+  const [ command, action ] = ctx.match.input.split('-')
+  const sess = ctx.session.tschedule
+  if(sess && sess.stack) {
+    if(action === 'left') sess.day < 1 ? sess.day = 4 : sess.day--
+    else if(action === 'up') sess.n < 1 ? sess.n = 4 : sess.n--
+    else if(action === 'down') sess.n > 3 ? sess.n = 0 : sess.n++
+    else if(action === 'right') sess.day > 3 ? sess.day = 0 : sess.day++
+    if(action === 'left' || action === 'right') sess.n = 1
+    ctx.editMessageText(`\`Розклад\`\n*${ sess.days[sess.day] }:*\n${ sess.stack[sess.day].map((s, n) =>
+      `${ n === sess.n ? `\`>\`` : `\` \`` } ${ n }) ${ s ? s : `\`[вікно]\`` }`).join('\n')}\n/exit - \`вихід\``,
+      Extra.markdown().markup(m => m.inlineKeyboard([
+        m.callbackButton('⬅️', `tschedule-left`),
+        m.callbackButton('⬆️', `tschedule-up`),
+        m.callbackButton('⬇️', `tschedule-down`),
+        m.callbackButton('➡️', `tschedule-right`)])))
+  }
+  ctx.answerCbQuery()
+})
+tschedule.command('exit', ctx => {
+  ctx.reply('Ви успішно вийшли із сцени редагування розкладу.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+tschedule.leave(ctx => ctx.session.tschedule = undefined)
+
+// TLINK
+const tlink = new WizardScene('tlink',
+  async (ctx) => {
+    const session = ctx.session.tlink
+    const links = await Links.findOne({ group_id: session.group_id })
+    session.links = links
+    if(links) {
+      const groups = await Groups.find({ group_id: { $in: links.groups.map(g => g.id) } })
+      ctx.replyWithMarkdown(`${ links.groups[0] ? `На даний момент у вас встановлено зв\'язок із наступн${ links.groups[1] ? 'ими' : 'ою' } груп${ links.groups[1] ? 'ами' : 'ою' }:\n\`${
+        links.groups.map(g => g.name).join('\n') }\`` : `У вас немає жодних зв\'язків із студентськими групами.` }\nВаш ключ запрошення:\n\`${ links.secret }\``,
+        Extra.markup(m => m.keyboard([['Оновити ключ', 'Редагувати зв\'язки', 'Вихід']]).resize()))
+    } else ctx.replyWithMarkdown(`Для початку роботи Вам необхідно створити новий ключ запрошення та надати його студентським групам.`,
+        Extra.markup(m => m.keyboard([['Створити ключ', 'Вихід']]).resize()))
+  },
+  async (ctx) => {
+    const session = ctx.session.tlink
+    if(ctx.message.text) {
+      const group = session.links.groups.find(g => g.name === ctx.message.text)
+      if(group) {
+        Links.update({ group_id: session.group_id }, {
+          $pull: { groups: { id: group.id } }
+        }).then(async () => {
+          const links = await Links.findOne({ group_id: session.group_id })
+          links.groups = links.groups.filter(g => !g.pending)
+          if(links.groups[0]) {
+            ctx.replyWithMarkdown(`Вкажіть групи із якими ви бажаєте перервати зв\'зок:\n/back - \`повернутися\``,
+              Extra.markup(m => m.keyboard(links.groups.map(g => g.name)).resize()))
+          } else {
+            ctx.replyWithMarkdown('Ви *успішно* витерли усі зв\'зки.')
+            ctx.wizard.selectStep(0)
+            ctx.wizard.steps[0](ctx)
+          }
+        }).catch(err => ctx.replyWithMarkdown('Відбулась невідома *помилка*, спробуйте будь ласка, пізніше.'))
+      } else ctx.replyWithMarkdown('Вибачте, але я не зрозумів вас.')
+    }
+  }
+)
+tlink.hears('Створити ключ', async ctx => {
+  const session = ctx.session.tlink
+  const links = await Links.findOne({ group_id: session.group_id })
+  if(!links) {
+    const secret = Math.random().toString(36).substring(2)
+    Links.create({
+      group_id: session.group_id,
+      secret: secret,
+      groups: []
+    }).then(() => {
+      ctx.replyWithMarkdown(`Ваш ключ запрошення:\n\`${ secret }\``, Extra.markup(m => m.keyboard([['Оновити ключ', 'Редагувати зв\'язки', 'Вихід']]).resize()))
+    }).catch(err => ctx.replyWithMarkdown('Відбулась невідома *помилка*, спробуйте будь ласка, пізніше.'))
+  }
+})
+tlink.hears('Оновити ключ', async ctx => {
+  const session = ctx.session.tlink
+  const links = await Links.findOne({ group_id: session.group_id })
+  if(links) {
+    const secret = Math.random().toString(36).substring(2)
+    Links.update({ group_id: session.group_id }, {
+      secret: secret
+    }).then(() => {
+      ctx.replyWithMarkdown(`Ваш ключ запрошення:\n\`${ secret }\``, Extra.markup(m => m.keyboard([['Оновити ключ', 'Редагувати зв\'язки', 'Вихід']]).resize()))
+    }).catch(err => ctx.replyWithMarkdown('Відбулась невідома *помилка*, спробуйте будь ласка, пізніше.'))
+  }
+})
+tlink.hears('Редагувати зв\'язки', async ctx => {
+  const session = ctx.session.tlink
+  if(session.links.groups.filter(g => !g.pending)[0]) {
+    ctx.replyWithMarkdown(`Вкажіть групи із якими ви бажаєте перервати зв\'зок:\n/back - \`повернутися\``,
+      Extra.markup(m => m.keyboard(session.links.groups.map(g => g.name).filter(g => !g.pending)).resize()))
+    ctx.wizard.selectStep(1)
+  } else ctx.replyWithMarkdown(`У Вас немає зв\'зку із *жодною* групою!`)
+})
+tlink.hears('Вихід', ctx => {
+  ctx.reply('Ви успішно вийшли із форми управління зв\'язками', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+tlink.command('back', ctx => {
+  if(ctx.wizard.cursor === 1) {
+    ctx.wizard.selectStep(0)
+    ctx.wizard.steps[0](ctx)
+  }
+})
+tlink.command('cancel', ctx => {
+  ctx.reply('Процес редагування зв\'язків було перервано.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+tlink.leave(ctx => ctx.session.tlink = undefined)
+
+
+// LINK
+const link = new WizardScene('link',
+  async (ctx) => {
+    const sess = ctx.session.link
+    const stack = ['\`Статус:\`']
+    const keyboard = []
+    const group = await Links.findOne({ 'groups.id': sess.group_id })
+    sess.group = group
+    if(group) {
+      const pending = group.groups.find(g => g.id === sess.group_id).pending
+      sess.pending = pending
+    }
+    if(group && !sess.pending) {
+      const g = await Groups.findOne({ group_id: group.group_id })
+      stack.push(`На даний момент ви зв\'язані із викладацькою групою \`${ g.group_title }\``)
+      keyboard.push('Розірвати зв\'язок')
+    } else if(group && sess.pending) {
+      const g = await Groups.findOne({ group_id: group.group_id })
+      stack.push(`На даний момент ви подали заявку на створення зв\'язку із викладацькою групою \`${ g.group_title }\``)
+      keyboard.push('Відмінити заявку')
+    } else {
+      stack.push(`На даний момент ви не є зв\'язані із *жодною* групою.`)
+      keyboard.push('Подати заявку')
+    }
+    stack.push('/exit - \`вихід\`')
+    ctx.replyWithMarkdown(stack.join('\n'), Extra.markup(m => m.keyboard([keyboard]).resize()))
+    ctx.wizard.next()
+  },
+  (ctx) => {
+    const sess = ctx.session.link
+    const txt = ctx.message.text
+    if(((txt === 'Розірвати зв\'язок') || (txt === 'Відмінити заявку')) && sess.group) {
+      Links.update({ group_id: sess.group.group_id }, {
+        $pull: { groups: { id: sess.group_id } }
+      }).then(() => {
+        ctx.replyWithMarkdown(sess.pending ? 'Зв\'язок успішно розірвано.' : 'Заявку успішно відмінено', Extra.markup((m) => m.removeKeyboard()))
+        ctx.scene.leave()
+      }).catch(() => {
+        ctx.replyWithMarkdown('Відбулась *невідома помилка*, спробуйте, будь ласка, пізніше.', Extra.markup((m) => m.removeKeyboard()))
+        ctx.scene.leave()
+      })
+    } else if(txt === 'Подати заявку') {
+      ctx.replyWithMarkdown('Напишіть мені, будь ласка, *ключ запрошення*:\n/exit - \`вихід\`', Extra.markup((m) => m.removeKeyboard()))
+      ctx.wizard.next()
+    } else ctx.replyWithMarkdown('Вибачте, але я вас не зрозумів.')
+  },
+  async (ctx) => {
+    const sess = ctx.session.link
+    const group = await Links.findOne({ secret: ctx.message.text })
+    if(group) {
+      ctx.replyWithMarkdown('Тепер напишіть мені *псевдонім* вашої групи, який буде відображатися викладчам:')
+      sess.secret = ctx.message.text
+      ctx.wizard.next()
+    } else ctx.replyWithMarkdown('Групи із таким ключем запрошення *не існує*!\n/exit - \`вихід\`')
+  },
+  (ctx) => {
+    if(ctx.message.text) {
+      const sess = ctx.session.link
+      Links.update({ secret: sess.secret }, {
+        $addToSet: { groups: { id: sess.group_id, name: ctx.message.text, pending: true } }
+      }).then(async () => {
+        const link = await Links.findOne({ secret: sess.secret })
+        const group = await Groups.findOne({ group_id: link.group_id })
+        const req_id = link.groups.find(g => g.id === sess.group_id)._id.toString()
+        ctx.telegram.sendMessage(group.creator, `\`Заявка на створення зв\'язку\`\nСтудентська група під пседнонімом \`${
+          ctx.message.text }\` бажає створити із вашою бесідою \`${ group.group_title }\` зв\'язок`, Extra.markdown().markup(m =>
+          m.inlineKeyboard([m.callbackButton('✔️',`link-yes-${ req_id }`), m.callbackButton('❌',`link-no-${ req_id }`)])))
+        ctx.replyWithMarkdown('Заявку успішно створено. Очікуйте затвердження від викладачів')
+        ctx.scene.leave()
+      }).catch(() => {
+        ctx.replyWithMarkdown('Відбулась *невідома помилка*, спробуйте, будь ласка, пізніше.', Extra.markup((m) => m.removeKeyboard()))
+        ctx.scene.leave()
+      })
+    }
+  }
+)
+link.command('exit', ctx => {
+  ctx.reply('Ви успішно вийшли із сцени редагування зв\'язку', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+link.leave(ctx => ctx.session.link = undefined)
+
+// DOCS
+const docs = new WizardScene('docs',
+  async (ctx) => {
+    const sess = ctx.session.docs
+    const link = await Links.findOne({ 'groups.id': sess.group_id })
+    sess.link = link
+    if(link) {
+      const docs = await Docs.find({ group_id: link.group_id })
+      sess.docs = docs
+      if(docs[0]) {
+        const users = await Users.find({ _id: { $in: docs.map(d => d.user_id) } })
+        ctx.replyWithMarkdown('Виберіть необхідного викладача:',
+          Extra.markup(m => m.keyboard(users.map(u => `${ u.last_name } ${ u.first_name } ${ u.middle_name }`)).resize()))
+        ctx.wizard.next()
+      } else {
+        ctx.replyWithMarkdown('Вибачте, але *жодний* користувач викладацької бесіди не має даних методичного забезпечення')
+        ctx.scene.leave()
+      }
+    } else {
+      ctx.replyWithMarkdown('Вибачте, але ваша бесіда *не зв\'язана* із викладацькою групою.\n/link - подати заявку')
+      ctx.scene.leave()
+    }
+  },
+  async (ctx) => {
+    const sess = ctx.session.docs
+    const txt = ctx.message.text
+    if(txt) {
+      const usr = txt.split(' ')
+      const user = await Users.findOne({ group_id: sess.link.group_id, last_name: usr[0], first_name: usr[1], middle_name: usr[2] })
+      if(user) {
+        const user_docs = sess.docs.filter(d => d.user_id.equals(user._id))
+        sess.user_docs = user_docs
+        ctx.replyWithMarkdown('Виберіть бажаний ресурс:',
+          Extra.markup(m => m.keyboard(user_docs.map(d => d.name)).resize()))
+        ctx.wizard.next()
+
+      } else ctx.replyWithMarkdown('Вибачте, але я *не знайшов* даного викладача')
+    }
+  },
+  (ctx) => {
+    const sess = ctx.session.docs
+    const txt = ctx.message.text
+    if(txt) {
+      const doc = sess.user_docs.find(d => d.name === txt)
+      if(doc) {
+        ctx.replyWithMarkdown(`Прикріплені документи в ресурсі \`${ doc.name }\``, Extra.markup((m) => m.removeKeyboard()))
+        doc.files.forEach((f, n) => setTimeout(() => ctx.replyWithDocument(f, { caption: doc.name }), n*100))
+        ctx.scene.leave()
+      } else ctx.replyWithMarkdown('Вибачте, але я *не знайшов* даний ресурс')
+    }
+  }
+)
+docs.command('cancel', ctx => {
+  ctx.reply('Ви успішно вийшли із сцени перегляду методичного забезпечення', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+docs.leave(ctx => ctx.session.docs = undefined)
+
+
+_Stage.register(getgroup, poll, schedule, homework, announce, requisites, money, adduser, deluser, delgroup, docs, tschedule)
+_Stage.register(absent, visiting, addparents, badgrade, delschedule, smsstatus, groupschedule, addgroup, tdocs, tlink, link)
 
 
 export default _Stage

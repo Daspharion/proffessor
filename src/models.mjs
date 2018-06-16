@@ -111,6 +111,7 @@ const _teacherSchedule = new Schema({
   periodic      : Boolean
 }, { versionKey: false })
 
+// LINKS
 const _links = new Schema({
   group_id      : Number,
   secret        : { type: String, unique: true },

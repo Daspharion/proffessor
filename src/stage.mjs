@@ -727,7 +727,7 @@ const badgrade = new WizardScene('badgrade',
     const badgrade = ctx.session.badgrade
     if(ctx.message.text) {
       badgrade.lesson = ctx.message.text
-      const parents = await Parents.find({ group_id: badgrade.group_id, user_id: badgrade.student })
+      const parents = await Parents.find({ group_id: badgrade.group_id, user_id: badgrade.student._id })
       if(parents[0]) {
         badgrade.hasparent = true
         badgrade.parents = parents.map(p => p.number)
@@ -745,7 +745,7 @@ const badgrade = new WizardScene('badgrade',
       if(badgrade.hasparent) {
         if(text === '❗️ УСІМ ❗️') badgrade.toall = true
         else {
-          const parent = await Parents.findOne({ group_id: badgrade.group_id, user_id: badgrade.student, name: text })
+          const parent = await Parents.findOne({ group_id: badgrade.group_id, user_id: badgrade.student._id, name: text })
           if(parent) badgrade.parent = [ parent.number ]
           else ctx.replyWithMarkdown('Помилка. Я не знайшов таку людину.')
         }
@@ -769,6 +769,106 @@ const badgrade = new WizardScene('badgrade',
 )
 badgrade.leave(ctx => ctx.session.badgrade = undefined)
 badgrade.command('cancel', ctx => {
+  ctx.reply('Процес відправки смс було перервано.', Extra.markup((m) => m.removeKeyboard()))
+  ctx.scene.leave()
+})
+
+// TBAD GRADE
+const tbadgrade = new WizardScene('tbadgrade',
+  async (ctx) => {
+    const sess = ctx.session.tbadgrade
+    const links = await Links.findOne({ group_id: sess.group_id })
+    sess.groups = links.groups
+    if(sess.groups.length) {
+      ctx.replyWithMarkdown('Оберіть необхідну групу студентів:',
+        Markup.keyboard(sess.groups.filter(g => !g.pending).map(g => g.name), { columns: 2 }).resize().extra())
+      ctx.wizard.next()
+    } else {
+      ctx.replyWithMarkdown('Вибачте, але ваша бесіда *не зв\'язана* із жодною студентською групою.')
+      ctx.scene.leave()
+    }
+  },
+  async (ctx) => {
+    const sess = ctx.session.tbadgrade
+    const txt = ctx.message.text
+    if(txt) {
+      const group = sess.groups.find(g => g.name === txt)
+      if(group) {
+        const users = await Users.find({ group_id: group.id })
+        if(users.length) {
+          sess.group = group.id
+          ctx.replyWithMarkdown('Оберіть бажаного студента:',
+            Markup.keyboard(users.map(user => `${ user.last_name } ${ user.first_name }`), { columns: 2 }).resize().extra())
+          ctx.wizard.next()
+        } else {
+          ctx.replyWithMarkdown('У цієї групи відсутня інформація про студентів.', Extra.markup((m) => m.removeKeyboard()))
+          ctx.scene.leave()
+        }
+      } else ctx.replyWithMarkdown('Вибачте, але я *не знайшов* дану групу')
+    }
+  },
+  async (ctx) => {
+    const sess = ctx.session.tbadgrade
+    const user = ctx.message.text.split(' ')
+    const student = await Users.findOne({ group_id: sess.group, first_name: user[1], last_name: user[0] })
+    if(student) {
+      sess.student = { _id: student._id, first_name: student.first_name, last_name: student.last_name, sex: student.sex }
+      const schedule = await Schedules.findOne({ group_id: sess.group })
+      if(schedule.schedule.find(day => day.find(sub => sub))) {
+        const day = new Date().getDay
+        const keyboard = day > 0 && day < 6 ? schedule.schedule[day-1].filter(e => e) : schedule.subjects
+        ctx.replyWithMarkdown('Оберіть предмет або напишіть його самостійно:',
+          Markup.keyboard(keyboard, { columns: 2 }).oneTime().resize().extra())
+      } else ctx.replyWithMarkdown('Вкажіть предмет:', Extra.markup((m) => m.removeKeyboard()))
+      ctx.wizard.next()
+    } else ctx.replyWithMarkdown('Вибачте, але я не знайшов такого студента')
+  },
+  async (ctx) => {
+    const sess = ctx.session.tbadgrade
+    if(ctx.message.text) {
+      sess.lesson = ctx.message.text
+      const parents = await Parents.find({ group_id: sess.group, user_id: sess.student._id })
+      if(parents[0]) {
+        sess.hasparent = true
+        sess.parents = parents.map(p => p.number)
+        const keyboard = parents.map(p => p.name)
+        ctx.replyWithMarkdown('Оберіть кому відправити смс:',
+          Markup.keyboard(keyboard[1] ? keyboard.concat('❗️ УСІМ ❗️') : keyboard, { columns: 2 }).resize().extra())
+      } else ctx.replyWithMarkdown('Напишіть телефонний номер отримувача:', Extra.markup((m) => m.removeKeyboard()))
+      ctx.wizard.next()
+    } else ctx.replyWithMarkdown('Я приймаю виключно *текст*!')
+  },
+  async (ctx) => {
+    const sess = ctx.session.tbadgrade
+    const text = ctx.message.text
+    if(text) {
+      if(sess.hasparent) {
+        if(text === '❗️ УСІМ ❗️') sess.toall = true
+        else {
+          const parent = await Parents.findOne({ group_id: sess.group, user_id: sess.student._id, name: text })
+          if(parent) sess.parent = [ parent.number ]
+          else ctx.replyWithMarkdown('Помилка. Я не знайшов таку людину.')
+        }
+      } else {
+        if(parseInt(text) && text.length === 10) sess.parent = [ +('38'+text) ]
+        else ctx.replyWithMarkdown('Помилка в номері телефону (потрібно 10 цифр).')
+      }
+      const to = sess.toall ? sess.parents : sess.parent
+      if(to && to[0]) {
+        const msg = `Студент${ sess.student.sex ? '' : 'ка' } ${ sess.student.last_name } ${
+          sess.student.first_name } отрима${ sess.student.sex ? 'в' : 'ла' } 2 з предмету ${ sess.lesson }`.slice(0, 70)
+        Sms.send(to, msg)
+          .then(ids => {
+            GroupSms.create({ group_id: sess.group_id, message_ids: ids, to: to, text: msg })
+            ctx.reply('СМС успішно відправлено!', Extra.markup((m) => m.removeKeyboard()))
+          }).catch(err => ctx.reply(`Error: ${ err.message || err }`, Extra.markup((m) => m.removeKeyboard())))
+        ctx.scene.leave()
+      }
+    } else ctx.replyWithMarkdown('Я приймаю виключно *текст*!')
+  }
+)
+tbadgrade.leave(ctx => ctx.session.tbadgrade = undefined)
+tbadgrade.command('cancel', ctx => {
   ctx.reply('Процес відправки смс було перервано.', Extra.markup((m) => m.removeKeyboard()))
   ctx.scene.leave()
 })
@@ -1458,7 +1558,7 @@ docs.leave(ctx => ctx.session.docs = undefined)
 
 
 _Stage.register(getgroup, poll, schedule, homework, announce, requisites, money, adduser, deluser, delgroup, docs, tschedule)
-_Stage.register(absent, visiting, addparents, badgrade, delschedule, smsstatus, groupschedule, addgroup, tdocs, tlink, link)
+_Stage.register(absent, visiting, addparents, badgrade, delschedule, smsstatus, groupschedule, addgroup, tdocs, tlink, link, tbadgrade)
 
 
 export default _Stage

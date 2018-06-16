@@ -1,5 +1,4 @@
 import Composer from 'telegraf/composer'
-import Markup from 'telegraf/markup'
 import Extra from 'telegraf/extra'
 import Actions from './actions'
 import Stage from './stage'
@@ -254,14 +253,15 @@ Handler.command('addparents', async ctx => {
 
 Handler.command('badgrade', async ctx => {
   if(ctx.message.chat.type === 'private') {
-    const groups = await Groups.find({ admins: ctx.message.from.id, type: false })
+    const groups = await Groups.find({ admins: ctx.message.from.id })
     if(groups[0]) {
       if(groups[1]) {
         ctx.scene.enter('getgroup')
-        ctx.session.getgroup = { user_id: ctx.message.from.id, next: 'badgrade', type: false }
+        ctx.session.getgroup = { user_id: ctx.message.from.id, next: 'tbadgrade|badgrade' }
       } else {
-        ctx.scene.enter('badgrade')
-        ctx.session.badgrade = { group_id: groups[0].group_id }
+        const scene = groups[0] ? 'tbadgrade' : 'badgrade'
+        ctx.scene.enter(scene)
+        ctx.session[scene] = { group_id: groups[0].group_id }
       }
     } else ctx.replyWithMarkdown(`Вибачте, але у вас недостатньо *прав* для цієї команди.`)
   } else ctx.replyWithMarkdown(`Вибачте, але дана команда доступна тільки через *приватні повідомлення*.`)
@@ -269,11 +269,11 @@ Handler.command('badgrade', async ctx => {
 
 Handler.command('smsstatus', async ctx => {
   if(ctx.message.chat.type === 'private') {
-    const groups = await Groups.find({ admins: ctx.message.from.id, type: false })
+    const groups = await Groups.find({ admins: ctx.message.from.id })
     if(groups[0]) {
       if(groups[1]) {
         ctx.scene.enter('getgroup')
-        ctx.session.getgroup = { user_id: ctx.message.from.id, next: 'smsstatus', type: false }
+        ctx.session.getgroup = { user_id: ctx.message.from.id, next: 'smsstatus' }
       } else {
         ctx.scene.enter('smsstatus')
         ctx.session.smsstatus = { group_id: groups[0].group_id }

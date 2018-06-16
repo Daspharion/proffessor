@@ -16,8 +16,8 @@ const getgroup = new Scene('getgroup')
 getgroup.enter(async ctx => {
   const getgroup = ctx.session.getgroup
   if(getgroup) {
-    const groups = await Groups.find({ admins: getgroup.user_id })
-    if('type' in getgroup) groups.filter(g => g.type === type)
+    let groups = await Groups.find({ admins: getgroup.user_id })
+    if('type' in getgroup) groups = groups.filter(g => g.type === getgroup.type)
     getgroup.groups = groups
     ctx.reply('Виберіть, будь ласка, необхідну бесіду:',
       Markup.keyboard(groups.map(({ group_title }) => group_title), { columns: 2 }).resize().extra())
